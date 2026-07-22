@@ -1,4 +1,12 @@
-# vinext-starter
+# Physics Diagram Editor
+
+PowerPointを使わず、教科書品質の力学図を素早く作成するための物理図エディタです。
+
+## Quality
+
+- [要件トレーサビリティ付き品質テストマトリクス](docs/QUALITY-TEST-MATRIX.md)
+
+## Base stack
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
