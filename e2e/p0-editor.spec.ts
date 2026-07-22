@@ -341,6 +341,40 @@ test("Catalog foundation: parts are placed, moved, locked, structured, and resto
   await expect(page.getByRole("button", { name: "ダンパーを表示", exact: true })).toBeVisible();
 });
 
+test("PHY-001: a textbook body can be placed, resized, rotated, moved, and restored", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  await librarySearch.fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  const canvas = page.getByTestId("editor-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas has no bounding box");
+  const placedAt = { x: 500, y: 490 };
+  await canvas.click({ position: placedAt });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  const xInput = inspector.getByRole("spinbutton", { name: "X", exact: true });
+  const initialX = Number(await xInput.inputValue());
+  await inspector.getByRole("spinbutton", { name: "幅", exact: true }).fill("200");
+  await inspector.getByRole("spinbutton", { name: "幅", exact: true }).press("Enter");
+  await inspector.getByRole("spinbutton", { name: "高さ", exact: true }).fill("100");
+  await inspector.getByRole("spinbutton", { name: "高さ", exact: true }).press("Enter");
+  await inspector.getByRole("spinbutton", { name: "回転 °", exact: true }).fill("25");
+  await inspector.getByRole("spinbutton", { name: "回転 °", exact: true }).press("Enter");
+  await page.mouse.move(box.x + placedAt.x, box.y + placedAt.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + placedAt.x + 80, box.y + placedAt.y - 70, { steps: 8 });
+  await page.mouse.up();
+  expect(Number(await xInput.inputValue())).toBeGreaterThan(initialX);
+  await expect(page.getByText("保存中…", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await expect(canvas).toHaveScreenshot("editable-textbook-body.png", { maxDiffPixels: 0 });
+
+  await page.reload();
+  await expect(inspector.getByRole("spinbutton", { name: "幅", exact: true })).toHaveValue("200");
+  await expect(inspector.getByRole("spinbutton", { name: "高さ", exact: true })).toHaveValue("100");
+  await expect(inspector.getByRole("spinbutton", { name: "回転 °", exact: true })).toHaveValue("25");
+});
+
 test("Catalog discovery: command search finds aliases and places the real component", async ({ page }) => {
   const command = page.getByPlaceholder("操作・部品を検索…");
   await command.fill("空気抵抗");
@@ -425,6 +459,36 @@ test("PHY-019/020: variable edits sync between HUD and inspector as atomic histo
   await redo.click();
   await expect(inspectorValue).toHaveValue("4");
   await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("variable-hud-inspector-sync.png", { maxDiffPixels: 0 });
+});
+
+test("PHY-008/068: a force supports symbol, magnitude, direction, and reversal", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  const canvas = page.getByTestId("editor-canvas");
+  await librarySearch.fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  await canvas.click({ position: { x: 520, y: 490 } });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await inspector.locator(".physics-candidates").getByRole("button", { name: "F", exact: true }).click();
+  await inspector.getByLabel("変量記号").fill("P");
+  await inspector.getByLabel("変量記号").press("Enter");
+  await inspector.getByRole("spinbutton", { name: "幅", exact: true }).fill("180");
+  await inspector.getByRole("spinbutton", { name: "幅", exact: true }).press("Enter");
+  await inspector.getByRole("spinbutton", { name: "回転 °", exact: true }).fill("20");
+  await inspector.getByRole("spinbutton", { name: "回転 °", exact: true }).press("Enter");
+  await inspector.getByRole("button", { name: "反転", exact: true }).click();
+  await expect(page.getByText("保存中…", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+
+  await expect(inspector.getByLabel("変量記号")).toHaveValue("P");
+  await expect(inspector.getByRole("spinbutton", { name: "幅", exact: true })).toHaveValue("180");
+  await expect(inspector.getByRole("spinbutton", { name: "回転 °", exact: true })).toHaveValue("200");
+  await expect(inspector.getByLabel("ベクトルの作用対象")).not.toHaveValue("");
+  await expect(canvas).toHaveScreenshot("editable-reversed-force.png", { maxDiffPixels: 0 });
+
+  await page.reload();
+  await expect(inspector.getByLabel("変量記号")).toHaveValue("P");
+  await expect(inspector.getByRole("spinbutton", { name: "回転 °", exact: true })).toHaveValue("200");
 });
 
 test("Semantic connection foundation: a string follows two targets and protects references", async ({ page }) => {

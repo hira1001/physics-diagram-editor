@@ -26,6 +26,8 @@
 | `PHY-018` | Unit、Chrome、Firefox、WebKit | 合格 | 記号・値・単位・型・参照IDを持つ変量モデル。質量、ばね定数`k [N/m]`、減衰係数`c [N·s/m]`、張力`T [N]`を検証 |
 | `PHY-019`, `PHY-020` | Chrome、Firefox、WebKit | 合格 | 図上HUDと右インスペクタ間で記号・値を即時同期。Esc取消、Enter確定、1回Undo/Redoを同一入力実装で検証 |
 | `PHY-038` | Unit、Chrome、Firefox、WebKit | 合格 | 参照元削除前に接続・変量・制約件数を提示。取消可能。確定時は多段参照を再帰削除し、保存・再読込後も孤児参照ゼロ |
+| `PHY-008`, `PHY-068` | Chrome、Firefox、WebKit | 合格 | 一般力を物体の作用点から追加し、記号・長さ・方向を数値編集、反転、前景描画、作用対象追従、保存復元を確認 |
+| `PHY-001` | Chrome、Firefox、WebKit | 合格 | 教科書風物体を配置し、幅・高さ・回転・位置を直接編集。移動、選択表示、保存復元をVisual Regression付きで確認 |
 | `INS-013`, `INS-014` | Chrome、Firefox、WebKit | 合格 | 滑らかな面に残る摩擦力を対象と同色で警告し、非破壊の解消候補を提示 |
 | `TPL-019`, `TPL-020` | Chrome、Firefox、WebKit | 合格 | 粗い壁、滑らかな壁のテンプレートを実部品として適用・再編集 |
 
@@ -34,7 +36,7 @@
 | コマンド群 | 結果 |
 |---|---|
 | Unit | 5ファイル、41テスト合格 |
-| E2E | 3ブラウザ、72テスト合格（スナップショット更新後の再実行も同数合格） |
+| E2E | 3ブラウザ、78テスト合格（スナップショット更新後の再実行も同数合格） |
 | TypeScript | 合格 |
 | ESLint | 合格 |
 | Production build / server render | 合格 |

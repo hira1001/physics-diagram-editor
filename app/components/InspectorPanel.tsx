@@ -220,6 +220,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
         <button aria-expanded={openSections.quick} className="inspector-heading" type="button" onClick={() => toggleSection("quick")}><span>クイック操作</span><ChevronDown size={14} /></button>
         {openSections.quick ? <div className="quick-grid">
           {selectedElement ? <>
+            {isVectorElement(selectedElement.kind) ? <button type="button" onClick={() => updateSelectedElement({ rotation: selectedElement.rotation + 180 })}><FlipHorizontal2 size={15} />反転</button> : null}
             <button type="button" onClick={() => {
               const copy = { ...selectedElement, id: globalThis.crypto.randomUUID(), x: selectedElement.x + 30, y: selectedElement.y + 30, locked: false };
               onSceneChange({ elements: [...scene.elements, copy], selectedId: `element:${copy.id}` });
