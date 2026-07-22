@@ -36,6 +36,7 @@ import {
 import { sceneToSvg } from "@/app/lib/scene-export";
 import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/app/lib/workspace-storage";
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
+import { componentToolId, PHYSICS_COMPONENT_CATALOG } from "@/app/lib/component-catalog";
 
 type LibraryTab = "add" | "structure";
 type Flyout = "export" | "menu" | null;
@@ -292,6 +293,13 @@ export function PhysicsEditor() {
     { id: "grid", label: "グリッドを切り替え", detail: activePage.scene.grid ? "グリッドを非表示" : "グリッドを表示", icon: "grid", run: () => updateScene({ grid: !activePage.scene.grid }) },
     { id: "panels", label: "左パネルを切り替え", detail: "作図領域を拡大", shortcut: "⌘B", icon: "panel", run: () => setWorkspace((current) => ({ ...current, leftPanelVisible: !current.leftPanelVisible })) },
     { id: "export", label: "PPTXとして出力", detail: "PowerPointで編集可能な図形", icon: "export", run: () => setFlyout("export") },
+    ...PHYSICS_COMPONENT_CATALOG.map((item): EditorCommandItem => ({
+      id: `add-part-${item.kind}`,
+      label: `${item.name}を追加`,
+      detail: `${item.category} · ${[...item.aliases, ...item.physics].join(" · ")}`,
+      icon: item.category === "ベクトル" ? "force" : item.category === "注釈" ? "angle" : item.category === "接触面" ? "incline" : "box",
+      run: () => setActiveTool(componentToolId(item.kind)),
+    })),
   ], [activePage.scene.grid, activePage.scene.surfaceRoughness, addFreeBodyPage, updateScene]);
 
   useEffect(() => {
@@ -326,7 +334,7 @@ export function PhysicsEditor() {
 
   const handleToolPick = useCallback((tool: ToolId) => {
     setActiveTool(tool);
-    if (activePage.kind === "blank") {
+    if (activePage.kind === "blank" && !tool.startsWith("part:")) {
       setWorkspace((current) => ({ ...current, pages: current.pages.map((page) => page.id === current.activePageId ? { ...page, kind: "incline" } : page) }));
     }
     const surfacePreset = surfacePresetForTool(tool);

@@ -5,6 +5,7 @@ import {
   type SceneState,
   type WorkspaceState,
 } from "@/app/lib/editor-types";
+import { catalogEntry, isDiagramElementKind } from "@/app/lib/component-catalog";
 
 export const WORKSPACE_STORAGE_KEY = "physics-editor-workspace-v1";
 
@@ -55,6 +56,31 @@ export function normalizeScene(candidate: unknown): SceneState {
   scene.surfaceRoughness = source.surfaceRoughness === "smooth" || source.surfaceRoughness === "rough" ? source.surfaceRoughness : INITIAL_SCENE.surfaceRoughness;
   scene.massLabel = typeof source.massLabel === "string" ? source.massLabel.slice(0, 40) : INITIAL_SCENE.massLabel;
   scene.annotationText = typeof source.annotationText === "string" ? source.annotationText.slice(0, 200) : INITIAL_SCENE.annotationText;
+  const seenElementIds = new Set<string>();
+  scene.elements = Array.isArray(source.elements) ? source.elements.flatMap((candidateElement, index) => {
+    if (!candidateElement || typeof candidateElement !== "object") return [];
+    const element = candidateElement as unknown as Record<string, unknown>;
+    if (!isDiagramElementKind(element.kind)) return [];
+    const definition = catalogEntry(element.kind);
+    let id = typeof element.id === "string" && element.id.trim() ? element.id.slice(0, 120) : `restored-${index + 1}`;
+    while (seenElementIds.has(id)) id = `${id}-${index + 1}`;
+    seenElementIds.add(id);
+    return [{
+      height: clamp(finiteOr(element.height, definition.defaultHeight), 8, 1000),
+      id,
+      kind: element.kind,
+      label: typeof element.label === "string" ? element.label.slice(0, 80) : definition.defaultLabel,
+      locked: element.locked === true,
+      rotation: clamp(finiteOr(element.rotation, 0), -3600, 3600),
+      visible: element.visible !== false,
+      width: clamp(finiteOr(element.width, definition.defaultWidth), 8, 1000),
+      x: clamp(finiteOr(element.x, 500), -2000, 3000),
+      y: clamp(finiteOr(element.y, 325), -2000, 3000),
+    }];
+  }) : [];
+  if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:") && !scene.elements.some((item) => `element:${item.id}` === scene.selectedId)) {
+    scene.selectedId = null;
+  }
   return scene;
 }
 

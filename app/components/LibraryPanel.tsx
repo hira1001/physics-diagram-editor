@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   Gauge,
+  Lock,
   Magnet,
   MousePointer2,
   MoveUpRight,
@@ -17,9 +18,11 @@ import {
   Slash,
   Waves,
   Type,
+  Unlock,
 } from "lucide-react";
 import type { SceneState, SelectionId, TemplateId, ToolId } from "@/app/lib/editor-types";
 import { surfaceDisplayName } from "@/app/lib/physics-rules";
+import { componentToolId, PHYSICS_COMPONENT_CATALOG, searchComponentCatalog, type ComponentCategory } from "@/app/lib/component-catalog";
 
 type LibraryTab = "add" | "structure";
 
@@ -74,6 +77,18 @@ const structureItems: Array<{
   { id: "axis", name: "座標軸  x–y", depth: 0 },
 ];
 
+const categoryIcons: Record<ComponentCategory, typeof Box> = {
+  物体: Box,
+  接触面: Slash,
+  支持: Magnet,
+  接続: Waves,
+  機械要素: CircleDot,
+  軌道: Orbit,
+  流体: Waves,
+  ベクトル: MoveUpRight,
+  注釈: Gauge,
+};
+
 export function LibraryPanel({
   activeTab,
   activeTool,
@@ -89,6 +104,10 @@ export function LibraryPanel({
   onToolPick,
 }: LibraryPanelProps) {
   const filteredItems = libraryItems.filter((item) => item.name.includes(query.trim()));
+  const catalogItems = searchComponentCatalog(query);
+  const catalogGroups = [...new Set(PHYSICS_COMPONENT_CATALOG.map((item) => item.category))]
+    .map((category) => ({ category, items: catalogItems.filter((item) => item.category === category) }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside className="library-panel" aria-label="部品と図の構造">
@@ -147,6 +166,32 @@ export function LibraryPanel({
                   </button>
                 );
               })}
+              {catalogGroups.map((group) => {
+                const CategoryIcon = categoryIcons[group.category];
+                return <div className="catalog-group" key={group.category}>
+                  <div className="catalog-category"><CategoryIcon size={13} /><span>{group.category}</span><b>{group.items.length}</b></div>
+                  {group.items.map((item) => {
+                    const toolId = componentToolId(item.kind);
+                    return <button
+                      className={`component-row catalog-row ${activeTool === toolId ? "active" : ""}`}
+                      key={item.kind}
+                      type="button"
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "copy";
+                        event.dataTransfer.setData("application/x-physics-tool", toolId);
+                        onToolPick(toolId);
+                      }}
+                      onClick={() => onToolPick(toolId)}
+                      title={`${item.name} — ${item.physics.join("・")}`}
+                    >
+                      <CategoryIcon size={16} />
+                      <span>{item.name}</span>
+                      {item.defaultLabel ? <code>{item.defaultLabel}</code> : <span />}
+                    </button>;
+                  })}
+                </div>;
+              })}
             </div>
           </section>
           <button className="library-footer" type="button" onClick={onOpenTemplates}>
@@ -189,6 +234,19 @@ export function LibraryPanel({
                   {canToggle ? <button className="visibility-control" type="button" onClick={toggleVisibility} aria-label={`${item.name}を${isVisible ? "非表示" : "表示"}`}>{isVisible ? <Eye size={13} /> : <EyeOff size={13} />}</button> : <span />}
                 </div>
               );
+            })}
+            {scene.elements.map((element) => {
+              const definition = PHYSICS_COMPONENT_CATALOG.find((item) => item.kind === element.kind)!;
+              const selectionId = `element:${element.id}` as SelectionId;
+              return <div className={`structure-row catalog-structure ${scene.selectedId === selectionId ? "active" : ""}`} key={element.id}>
+                <button className="structure-select" type="button" aria-label={`${definition.name} ${element.label}`.trim()} onClick={() => onSelect(selectionId)}>
+                  <ChevronRight size={12} /><MousePointer2 size={13} /><span>{definition.name}{element.label ? `  ${element.label}` : ""}</span>
+                </button>
+                <span className="structure-actions">
+                  <button className="visibility-control" type="button" onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === element.id ? { ...item, locked: !item.locked } : item) })} aria-label={`${definition.name}を${element.locked ? "ロック解除" : "ロック"}`}>{element.locked ? <Lock size={13} /> : <Unlock size={13} />}</button>
+                  <button className="visibility-control" type="button" onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === element.id ? { ...item, visible: !item.visible } : item) })} aria-label={`${definition.name}を${element.visible ? "非表示" : "表示"}`}>{element.visible ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+                </span>
+              </div>;
             })}
           </div>
         </>

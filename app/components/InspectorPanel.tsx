@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronDown,
   FlipHorizontal2,
@@ -11,8 +11,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
-import type { PageKind, SceneState, SelectionId } from "@/app/lib/editor-types";
+import { NumericInput } from "@/app/components/NumericInput";
+import type { DiagramElement, PageKind, SceneState } from "@/app/lib/editor-types";
 import { hasSurfaceConflict, surfaceDisplayName } from "@/app/lib/physics-rules";
+import { catalogEntry } from "@/app/lib/component-catalog";
 
 interface InspectorPanelProps {
   scene: SceneState;
@@ -24,7 +26,7 @@ interface InspectorPanelProps {
 
 type SectionKey = "dimensions" | "quick" | "variables" | "constraints" | "appearance";
 
-const selectionNames: Record<Exclude<SelectionId, null>, string> = {
+const selectionNames: Record<string, string> = {
   incline: "斜面",
   block: "物体",
   "mass-label": "質量ラベル",
@@ -38,6 +40,53 @@ const selectionNames: Record<Exclude<SelectionId, null>, string> = {
   text: "テキスト",
 };
 
+type ElementNumberKey = "height" | "rotation" | "width" | "x" | "y";
+
+function ElementNumericInput({ element, property, scene, onCommitSnapshot, onSceneChange }: {
+  element: DiagramElement;
+  property: ElementNumberKey;
+  scene: SceneState;
+  onCommitSnapshot: (scene: SceneState) => void;
+  onSceneChange: (patch: Partial<SceneState>, record?: boolean) => void;
+}) {
+  const limits = property === "width" || property === "height" ? { min: 8, max: 1000 } : property === "rotation" ? { min: -3600, max: 3600 } : { min: -2000, max: 3000 };
+  const replace = (value: number, source = scene) => source.elements.map((item) => item.id === element.id ? { ...item, [property]: Math.min(limits.max, Math.max(limits.min, value)) } : item);
+  return <NumericInput
+    {...limits}
+    value={element[property]}
+    onValueChange={(value) => onSceneChange({ elements: replace(value) }, false)}
+    onValueCommit={(_, initial) => onCommitSnapshot({ ...scene, elements: replace(initial) })}
+    onValueCancel={(initial) => onSceneChange({ elements: replace(initial) }, false)}
+  />;
+}
+
+function ElementLabelInput({ element, scene, onCommitSnapshot, onSceneChange }: {
+  element: DiagramElement;
+  scene: SceneState;
+  onCommitSnapshot: (scene: SceneState) => void;
+  onSceneChange: (patch: Partial<SceneState>, record?: boolean) => void;
+}) {
+  const initial = useRef(element.label);
+  const cancelled = useRef(false);
+  return <input
+    value={element.label}
+    onFocus={() => { initial.current = element.label; cancelled.current = false; }}
+    onChange={(event) => onSceneChange({ elements: scene.elements.map((item) => item.id === element.id ? { ...item, label: event.target.value.slice(0, 80) } : item) }, false)}
+    onKeyDown={(event) => {
+      if (event.key === "Enter") event.currentTarget.blur();
+      if (event.key === "Escape") {
+        cancelled.current = true;
+        onSceneChange({ elements: scene.elements.map((item) => item.id === element.id ? { ...item, label: initial.current } : item) }, false);
+        event.currentTarget.blur();
+      }
+    }}
+    onBlur={() => {
+      if (!cancelled.current && element.label !== initial.current) onCommitSnapshot({ ...scene, elements: scene.elements.map((item) => item.id === element.id ? { ...item, label: initial.current } : item) });
+      cancelled.current = false;
+    }}
+  />;
+}
+
 export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnapshot, onSceneChange }: InspectorPanelProps) {
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     dimensions: true,
@@ -46,7 +95,14 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
     constraints: true,
     appearance: false,
   });
-  const selectedName = scene.selectedId === "incline" ? surfaceDisplayName(scene.surfaceKind, scene.surfaceRoughness) : scene.selectedId ? selectionNames[scene.selectedId] : "選択なし";
+  const selectedElement = typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")
+    ? scene.elements.find((item) => `element:${item.id}` === scene.selectedId) ?? null
+    : null;
+  const selectedName = scene.selectedId === "incline"
+    ? surfaceDisplayName(scene.surfaceKind, scene.surfaceRoughness)
+    : selectedElement
+      ? catalogEntry(selectedElement.kind).name
+      : scene.selectedId ? selectionNames[scene.selectedId] ?? "選択対象" : "選択なし";
   const isIncline = scene.selectedId === "incline";
   const isAngleLabel = scene.selectedId === "angle";
   const isBlock = scene.selectedId === "block" || scene.selectedId === "mass-label";
@@ -59,6 +115,10 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
     ...(scene.surfaceRoughness === "rough" ? { showFriction: true } : {}),
   });
   const toggleSection = (key: SectionKey) => setOpenSections((current) => ({ ...current, [key]: !current[key] }));
+  const updateSelectedElement = (patch: Partial<DiagramElement>) => {
+    if (!selectedElement) return;
+    onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, ...patch } : item) });
+  };
 
   return (
     <aside className="inspector-panel" aria-label="選択対象の設定">
@@ -70,7 +130,14 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
       <section className={`inspector-section ${openSections.dimensions ? "open" : ""}`}>
         <button aria-expanded={openSections.dimensions} className="inspector-heading" type="button" onClick={() => toggleSection("dimensions")}><span>寸法・値</span><ChevronDown size={14} /></button>
         {openSections.dimensions ? <div className="inspector-content">
-          {isIncline ? <>
+          {selectedElement ? <>
+            <label className="property-row"><span>ラベル</span><ElementLabelInput element={selectedElement} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            <label className="property-row"><span>X</span><ElementNumericInput element={selectedElement} property="x" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            <label className="property-row"><span>Y</span><ElementNumericInput element={selectedElement} property="y" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            <label className="property-row"><span>幅</span><ElementNumericInput element={selectedElement} property="width" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            <label className="property-row"><span>高さ</span><ElementNumericInput element={selectedElement} property="height" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            <label className="property-row"><span>回転</span><div className="unit-input"><ElementNumericInput element={selectedElement} property="rotation" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></div></label>
+          </> : isIncline ? <>
             <label className="property-row"><span>面</span><select aria-label="接触面の向き" value={scene.surfaceKind} onChange={(event) => onSceneChange({ surfaceKind: event.target.value as SceneState["surfaceKind"], showAngle: event.target.value === "incline" })}><option value="floor">床</option><option value="incline">斜面</option><option value="wall">壁</option></select></label>
             <label className="property-row"><span>表面</span><select aria-label="接触面の粗さ" value={scene.surfaceRoughness} onChange={(event) => onSceneChange({ surfaceRoughness: event.target.value as SceneState["surfaceRoughness"] })}><option value="smooth">滑らか</option><option value="rough">粗い</option></select></label>
             {scene.surfaceKind === "incline" ? <>
@@ -102,14 +169,21 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
             <label className="property-row"><span>X</span><div className="unit-input"><SceneNumericInput min="4" max="96" property="annotationX" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label>
             <label className="property-row"><span>Y</span><div className="unit-input"><SceneNumericInput min="4" max="96" property="annotationY" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label>
           </> : null}
-          {!isIncline && !isAngleLabel && !isBlock && !isText ? <label className="property-row"><span>ベクトル</span><div className="unit-input"><SceneNumericInput min="50" max="180" property="forceScale" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label> : null}
+          {!selectedElement && !isIncline && !isAngleLabel && !isBlock && !isText ? <label className="property-row"><span>ベクトル</span><div className="unit-input"><SceneNumericInput min="50" max="180" property="forceScale" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label> : null}
         </div> : null}
       </section>
 
       <section className={`inspector-section ${openSections.quick ? "open" : ""}`}>
         <button aria-expanded={openSections.quick} className="inspector-heading" type="button" onClick={() => toggleSection("quick")}><span>クイック操作</span><ChevronDown size={14} /></button>
         {openSections.quick ? <div className="quick-grid">
-          {isText ? <>
+          {selectedElement ? <>
+            <button type="button" onClick={() => {
+              const copy = { ...selectedElement, id: globalThis.crypto.randomUUID(), x: selectedElement.x + 30, y: selectedElement.y + 30, locked: false };
+              onSceneChange({ elements: [...scene.elements, copy], selectedId: `element:${copy.id}` });
+            }}><Plus size={15} />複製</button>
+            <button className={selectedElement.locked ? "active" : ""} type="button" onClick={() => updateSelectedElement({ locked: !selectedElement.locked })}><Link2 size={15} />{selectedElement.locked ? "ロック解除" : "ロック"}</button>
+            <button type="button" onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={15} />削除</button>
+          </> : isText ? <>
             <button type="button" onClick={() => onSceneChange({ annotationX: 0.5, annotationY: 0.2 })}><RotateCcw size={15} />中央へ戻す</button>
             <button type="button" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={15} />削除</button>
           </> : isFreeBody ? <>
@@ -127,9 +201,11 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
       <section className={`inspector-section ${openSections.variables ? "open" : ""}`}>
         <button aria-expanded={openSections.variables} className="inspector-heading" type="button" onClick={() => toggleSection("variables")}><span>変量</span><ChevronDown size={14} /></button>
         {openSections.variables ? <div className="token-list">
-          <button className="token-row active" type="button" onClick={() => onSceneChange({ selectedId: "angle" })}><i>θ</i><span>斜面角</span><b>{scene.angle}°</b></button>
-          <button className="token-row" type="button" onClick={() => onSceneChange({ selectedId: "mass-label" })}><i>m</i><span>質量</span><b>— kg</b></button>
-          {scene.surfaceRoughness === "rough" ? <div className="friction-variable-row"><i>μ</i><span>摩擦係数</span><SceneNumericInput aria-label="摩擦係数" min="0" max="10" step="0.05" property="surfaceFrictionCoefficient" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></div> : null}
+          {selectedElement && selectedElement.label ? <div className="token-row active"><i>{selectedElement.label}</i><span>{catalogEntry(selectedElement.kind).name}</span><b>参照中</b></div> : <>
+            <button className="token-row active" type="button" onClick={() => onSceneChange({ selectedId: "angle" })}><i>θ</i><span>斜面角</span><b>{scene.angle}°</b></button>
+            <button className="token-row" type="button" onClick={() => onSceneChange({ selectedId: "mass-label" })}><i>m</i><span>質量</span><b>— kg</b></button>
+          </>}
+          {!selectedElement && scene.surfaceRoughness === "rough" ? <div className="friction-variable-row"><i>μ</i><span>摩擦係数</span><SceneNumericInput aria-label="摩擦係数" min="0" max="10" step="0.05" property="surfaceFrictionCoefficient" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></div> : null}
           {scene.customVariableSymbol ? <div className="custom-variable-row">
             <input aria-label="変量記号" value={scene.customVariableSymbol} onChange={(event) => onSceneChange({ customVariableSymbol: event.target.value })} />
             <input aria-label="変量値" value={scene.customVariableValue} onChange={(event) => onSceneChange({ customVariableValue: event.target.value })} placeholder="値" />
@@ -152,6 +228,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
         <button aria-expanded={openSections.appearance} className="inspector-heading" type="button" onClick={() => toggleSection("appearance")}><span>外観</span><ChevronDown size={14} /></button>
         {openSections.appearance ? <div className="appearance-list">
           <label><input type="checkbox" checked={scene.grid} onChange={(event) => onSceneChange({ grid: event.target.checked })} />グリッド</label>
+          {selectedElement ? <><label><input type="checkbox" checked={selectedElement.visible} onChange={(event) => updateSelectedElement({ visible: event.target.checked })} />表示</label><label><input type="checkbox" checked={selectedElement.locked} onChange={(event) => updateSelectedElement({ locked: event.target.checked })} />ロック</label></> : null}
           {!isFreeBody ? <><label><input type="checkbox" checked={scene.showAxis} onChange={(event) => onSceneChange({ showAxis: event.target.checked })} />座標軸</label>
           <label><input type="checkbox" checked={scene.showAngle} onChange={(event) => onSceneChange({ showAngle: event.target.checked })} />角度</label></> : null}
           <label><input type="checkbox" checked={scene.showFriction} onChange={(event) => onSceneChange({ showFriction: event.target.checked })} />摩擦力</label>

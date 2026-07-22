@@ -5,6 +5,8 @@ import { FlipHorizontal2, Link2, MoveUpRight, RotateCcw, Trash2 } from "lucide-r
 import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
 import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor-types";
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
+import { catalogEntry, catalogEntryForTool, createDiagramElement } from "@/app/lib/component-catalog";
+import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
 
 interface EditorCanvasProps {
   activeTool: ToolId;
@@ -25,6 +27,7 @@ export interface Geometry {
   artboard: { x: number; y: number; width: number; height: number };
   annotationPoint: Point;
   blockCenter: Point;
+  contentOrigin: Point;
   end: Point;
   forceFrictionEnd: Point;
   forceGravityEnd: Point;
@@ -111,6 +114,7 @@ export function createGeometry(width: number, height: number, scene: SceneState,
     },
     artboard,
     blockCenter,
+    contentOrigin: { x: offsetX, y: offsetY },
     end,
     forceFrictionEnd,
     forceGravityEnd,
@@ -206,6 +210,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.clip();
 
   if (pageKind === "blank") {
+    for (const element of scene.elements) drawDiagramElement(ctx, element, geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
     ctx.restore();
     return geometry;
   }
@@ -373,6 +378,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.fillText(scene.annotationText, geometry.annotationPoint.x, geometry.annotationPoint.y);
   }
 
+  for (const element of scene.elements) drawDiagramElement(ctx, element, geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
+
   if (scene.selectedId && scene.selectedId.startsWith("force-")) {
     const endpoint = scene.selectedId === "force-gravity" ? geometry.forceGravityEnd : scene.selectedId === "force-normal" ? geometry.forceNormalEnd : geometry.forceFrictionEnd;
     ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#3178d4"; ctx.lineWidth = 2;
@@ -383,6 +390,14 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
 }
 
 function hitTest(point: Point, geometry: Geometry, scene: SceneState): SelectionId {
+  const contentPoint = {
+    x: (point.x - geometry.contentOrigin.x) / geometry.scale,
+    y: (point.y - geometry.contentOrigin.y) / geometry.scale,
+  };
+  for (let index = scene.elements.length - 1; index >= 0; index -= 1) {
+    const element = scene.elements[index];
+    if (diagramElementContainsPoint(element, contentPoint)) return `element:${element.id}`;
+  }
   if (scene.showAnnotation && distance(point, geometry.annotationPoint) < 46) return "text";
   if (distance(point, geometry.massLabelPoint) < 24) return "mass-label";
   if (distance(point, geometry.blockCenter) < 75 * geometry.scale) return "block";
@@ -412,7 +427,7 @@ export function EditorCanvas({
   const dragStartPointRef = useRef<Point | null>(null);
   const [size, setSize] = useState({ width: 900, height: 620 });
   const [pointer, setPointer] = useState<Point>({ x: 0, y: 0 });
-  const [dragMode, setDragMode] = useState<"angle" | "angle-label" | "block" | "diagram" | "force" | "freebody" | "mass-label" | "text" | null>(null);
+  const [dragMode, setDragMode] = useState<"angle" | "angle-label" | "block" | "diagram" | "element" | "force" | "freebody" | "mass-label" | "text" | null>(null);
   const [suggestion, setSuggestion] = useState<Point | null>(null);
 
   useEffect(() => {
@@ -458,6 +473,17 @@ export function EditorCanvas({
     setSuggestion(null);
 
     if (activeTool !== "select") {
+      const catalogDefinition = catalogEntryForTool(activeTool);
+      if (catalogDefinition) {
+        const element = createDiagramElement(
+          catalogDefinition.kind,
+          clamp((point.x - geometry.contentOrigin.x) / geometry.scale, 0, 1000),
+          clamp((point.y - geometry.contentOrigin.y) / geometry.scale, 0, 650),
+        );
+        onSceneChange({ elements: [...scene.elements, element], selectedId: `element:${element.id}` });
+        onToolComplete();
+        return;
+      }
       const surfacePreset = surfacePresetForTool(activeTool);
       const patch: Partial<SceneState> = surfacePreset ? surfacePlacementPatch(surfacePreset) : { selectedId: activeTool === "force" ? "force-gravity" : activeTool as SelectionId };
       if (activeTool === "angle") patch.showAngle = true;
@@ -485,14 +511,19 @@ export function EditorCanvas({
       x: geometry.artboard.x + geometry.artboard.width / 2 + scene.diagramOffsetX * geometry.scale,
       y: geometry.artboard.y + geometry.artboard.height / 2 + scene.diagramOffsetY * geometry.scale,
     };
+    const sceneHit = hitTest(point, geometry, scene);
     const hit = pageKind === "freebody"
-      ? distance(point, freeBodyCenter) < 90 * geometry.scale ? "block" : null
-      : hitTest(point, geometry, scene);
+      ? typeof sceneHit === "string" && sceneHit.startsWith("element:") ? sceneHit : distance(point, freeBodyCenter) < 90 * geometry.scale ? "block" : null
+      : sceneHit;
     onSceneChange({ selectedId: hit });
     if (!hit) return;
     dragStartSceneRef.current = { ...scene };
     dragStartPointRef.current = point;
-    if (hit === "incline" && scene.surfaceKind === "incline" && distance(point, geometry.end) < 32) setDragMode("angle");
+    if (hit.startsWith("element:")) {
+      const element = scene.elements.find((item) => `element:${item.id}` === hit);
+      if (element && !element.locked) setDragMode("element");
+    }
+    else if (hit === "incline" && scene.surfaceKind === "incline" && distance(point, geometry.end) < 32) setDragMode("angle");
     else if (hit === "incline") setDragMode("diagram");
     else if (hit === "angle") setDragMode("angle-label");
     else if (hit === "mass-label") setDragMode("mass-label");
@@ -506,9 +537,20 @@ export function EditorCanvas({
     event.preventDefault();
     const droppedTool = event.dataTransfer.getData("application/x-physics-tool") as ToolId;
     const validTools: ToolId[] = ["incline", "surface-rough-floor", "surface-rough-incline", "surface-rough-wall", "surface-smooth-floor", "surface-smooth-incline", "surface-smooth-wall", "block", "force", "angle", "axis", "spring", "pulley", "text"];
-    if (!validTools.includes(droppedTool)) return;
+    const catalogDefinition = catalogEntryForTool(droppedTool);
+    if (!validTools.includes(droppedTool) && !catalogDefinition) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    if (catalogDefinition) {
+      const element = createDiagramElement(
+        catalogDefinition.kind,
+        clamp((point.x - geometry.contentOrigin.x) / geometry.scale, 0, 1000),
+        clamp((point.y - geometry.contentOrigin.y) / geometry.scale, 0, 650),
+      );
+      onSceneChange({ elements: [...scene.elements, element], selectedId: `element:${element.id}` });
+      onToolComplete();
+      return;
+    }
     const surfacePreset = surfacePresetForTool(droppedTool);
     const patch: Partial<SceneState> = surfacePreset ? surfacePlacementPatch(surfacePreset) : { selectedId: droppedTool === "force" ? "force-gravity" : droppedTool as SelectionId };
     if (droppedTool === "angle") patch.showAngle = true;
@@ -529,7 +571,7 @@ export function EditorCanvas({
     }
     onSceneChange(patch);
     onToolComplete();
-  }, [geometry, onSceneChange, onToolComplete, scene.surfaceRoughness]);
+  }, [geometry, onSceneChange, onToolComplete, scene.elements, scene.surfaceRoughness]);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
     const point = canvasPoint(event);
@@ -549,6 +591,19 @@ export function EditorCanvas({
         nextY = Math.round(nextY / 10) * 10;
       }
       onSceneChange({ diagramOffsetX: nextX, diagramOffsetY: nextY }, false);
+      return;
+    }
+    if (dragMode === "element" && startScene && startPoint && typeof scene.selectedId === "string") {
+      const elementId = scene.selectedId.slice("element:".length);
+      const original = startScene.elements.find((item) => item.id === elementId);
+      if (!original) return;
+      let nextX = original.x + (point.x - startPoint.x) / geometry.scale;
+      let nextY = original.y + (point.y - startPoint.y) / geometry.scale;
+      if (scene.snapEnabled && !event.altKey) {
+        nextX = Math.round(nextX / 10) * 10;
+        nextY = Math.round(nextY / 10) * 10;
+      }
+      onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, x: nextX, y: nextY } : item) }, false);
       return;
     }
     if (dragMode === "angle-label" && startScene && startPoint) {
@@ -606,7 +661,7 @@ export function EditorCanvas({
     }
     if (activeTool === "select" && distance(point, geometry.start) < 58) setSuggestion({ x: point.x + 14, y: point.y + 14 });
     else setSuggestion(null);
-  }, [activeTool, canvasPoint, dragMode, geometry, onPointerPositionChange, onSceneChange, scene.angle, scene.contactConstraint, scene.flipped, scene.snapEnabled, scene.surfaceKind]);
+  }, [activeTool, canvasPoint, dragMode, geometry, onPointerPositionChange, onSceneChange, scene.angle, scene.contactConstraint, scene.elements, scene.flipped, scene.selectedId, scene.snapEnabled, scene.surfaceKind]);
 
   const handlePointerUp = useCallback(() => {
     if (dragMode && dragStartSceneRef.current) onCommitSnapshot(dragStartSceneRef.current);
@@ -641,6 +696,13 @@ export function EditorCanvas({
         top: geometry.artboard.y + 16,
       };
     }
+    if (scene.selectedId.startsWith("element:")) {
+      const element = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
+      if (element) return {
+        left: clamp(geometry.contentOrigin.x + (element.x + element.width / 2) * geometry.scale + 16, 16, size.width - 250),
+        top: clamp(geometry.contentOrigin.y + (element.y - element.height / 2) * geometry.scale - 48, 16, size.height - 70),
+      };
+    }
     const anchor = scene.selectedId === "text"
         ? geometry.annotationPoint
         : scene.selectedId === "force-gravity"
@@ -651,7 +713,11 @@ export function EditorCanvas({
               ? geometry.forceFrictionEnd
               : geometry.origin;
     return { left: clamp(anchor.x + 24, 16, size.width - 250), top: clamp(anchor.y - 48, 16, size.height - 70) };
-  }, [geometry, pageKind, scene.diagramOffsetX, scene.diagramOffsetY, scene.flipped, scene.selectedId, size]);
+  }, [geometry, pageKind, scene.diagramOffsetX, scene.diagramOffsetY, scene.elements, scene.flipped, scene.selectedId, size]);
+
+  const selectedElement = typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")
+    ? scene.elements.find((item) => `element:${item.id}` === scene.selectedId) ?? null
+    : null;
 
   return (
     <main className={`canvas-workspace tool-${activeTool}`} ref={wrapperRef}>
@@ -694,12 +760,16 @@ export function EditorCanvas({
             <label><span>文字</span><SceneTextInput property="annotationText" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
           ) : scene.selectedId?.startsWith("force-") ? (
             <label><span>倍率</span><SceneNumericInput min="50" max="180" property="forceScale" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></label>
+          ) : selectedElement ? (
+            <span className="hud-name">{catalogEntry(selectedElement.kind).name}{selectedElement.label ? ` · ${selectedElement.label}` : ""}</span>
           ) : <span className="hud-name">{scene.selectedId === "axis" ? "座標軸" : scene.selectedId === "spring" ? "ばね" : "滑車"}</span>}
           <span className="hud-divider" />
           {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle") ? <button type="button" title="左右反転" onClick={() => onSceneChange({ flipped: !scene.flipped, blockPosition: 1 - scene.blockPosition })}><FlipHorizontal2 size={14} /></button> : null}
           {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle" || scene.selectedId === "block" || scene.selectedId === "mass-label") ? <button className={scene.contactConstraint ? "active" : ""} type="button" title="接触制約" onClick={() => onSceneChange({ contactConstraint: !scene.contactConstraint, ...(!scene.contactConstraint ? { blockOffsetX: 0, blockOffsetY: 0 } : {}) })}><Link2 size={14} /></button> : null}
           <button type="button" title="位置をリセット" onClick={() => onSceneChange(pageKind === "freebody" ? { diagramOffsetX: 0, diagramOffsetY: 0 } : scene.selectedId === "angle" ? { angleLabelOffsetX: 0, angleLabelOffsetY: 0 } : scene.selectedId === "mass-label" || scene.selectedId === "block" ? { massLabelOffsetX: 0, massLabelOffsetY: 0 } : scene.selectedId === "text" ? { annotationX: 0.5, annotationY: 0.2 } : { diagramOffsetX: 0, diagramOffsetY: 0 })}><RotateCcw size={14} /></button>
           {scene.selectedId === "text" ? <button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button> : scene.selectedId === "block" || scene.selectedId === "mass-label" ? <button type="button" title="力を追加" onClick={() => onSceneChange({ showGravity: true, showNormal: true, ...(scene.surfaceRoughness === "rough" ? { showFriction: true } : {}) })}><MoveUpRight size={14} /></button> : null}
+          {selectedElement ? <button className={selectedElement.locked ? "active" : ""} type="button" title={selectedElement.locked ? "ロック解除" : "ロック"} onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, locked: !item.locked } : item) })}><Link2 size={14} /></button> : null}
+          {selectedElement ? <button type="button" title="削除" onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button> : null}
         </div>
       ) : null}
 

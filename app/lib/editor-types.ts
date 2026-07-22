@@ -2,6 +2,32 @@ export type UiDensity = "standard" | "compact";
 export type SurfaceKind = "floor" | "incline" | "wall";
 export type SurfaceRoughness = "rough" | "smooth";
 
+export type DiagramElementKind =
+  | "point-mass" | "block" | "sphere" | "disk" | "wedge" | "cart"
+  | "ceiling" | "step" | "corner" | "curved-surface"
+  | "fixed-end" | "pin-support" | "hinge" | "roller-support" | "simple-support" | "strut"
+  | "string" | "rope" | "cable" | "light-rod" | "spring" | "damper"
+  | "fixed-pulley" | "movable-pulley" | "compound-pulley" | "wheel-axle" | "rotation-axis" | "belt"
+  | "straight-track" | "circular-track" | "curved-track" | "projectile-path"
+  | "fluid-surface" | "container" | "fluid-region"
+  | "force" | "gravity" | "normal-force" | "friction-force" | "tension" | "spring-force"
+  | "drag-force" | "buoyancy" | "thrust" | "velocity" | "acceleration" | "momentum" | "moment"
+  | "local-axis" | "angle-arc" | "length-dimension" | "radius-dimension" | "center-of-mass"
+  | "point-label" | "construction-line" | "text";
+
+export interface DiagramElement {
+  id: string;
+  kind: DiagramElementKind;
+  label: string;
+  locked: boolean;
+  rotation: number;
+  visible: boolean;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+}
+
 export type SelectionId =
   | "incline"
   | "block"
@@ -14,11 +40,12 @@ export type SelectionId =
   | "spring"
   | "pulley"
   | "text"
+  | `element:${string}`
   | null;
 
 export type TemplateId = "horizontal" | "incline" | "pulley" | "rough-wall" | "smooth-incline" | "smooth-wall" | "spring" | "freebody";
 
-export type ToolId =
+export type LegacyToolId =
   | "select"
   | "incline"
   | "surface-rough-floor"
@@ -34,6 +61,8 @@ export type ToolId =
   | "spring"
   | "pulley"
   | "text";
+
+export type ToolId = LegacyToolId | `part:${DiagramElementKind}`;
 
 export interface SceneState {
   angle: number;
@@ -60,6 +89,7 @@ export interface SceneState {
   annotationText: string;
   annotationX: number;
   annotationY: number;
+  elements: DiagramElement[];
   showAngle: boolean;
   showAnnotation: boolean;
   showAxis: boolean;
@@ -118,6 +148,7 @@ export const INITIAL_SCENE: SceneState = {
   annotationText: "注記",
   annotationX: 0.5,
   annotationY: 0.2,
+  elements: [],
   showAngle: true,
   showAnnotation: false,
   showAxis: true,

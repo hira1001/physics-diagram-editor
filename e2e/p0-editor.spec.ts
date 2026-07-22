@@ -293,3 +293,62 @@ test("PHY-046 and INS-013/014: surface conflicts are visible and resolved withou
   await expect(conflict).toHaveCount(0);
   await expect(inspector.getByLabel("接触面の粗さ")).toHaveValue("rough");
 });
+
+test("Catalog foundation: parts are placed, moved, locked, structured, and restored", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  await librarySearch.fill("ダンパー");
+  await page.getByRole("button", { name: /^ダンパー/ }).click();
+
+  const canvas = page.getByTestId("editor-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas has no bounding box");
+  const placedAt = { x: 500, y: 490 };
+  await canvas.click({ position: placedAt });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("ダンパー");
+  const xInput = inspector.getByRole("spinbutton", { name: "X", exact: true });
+  const initialX = Number(await xInput.inputValue());
+  await expect(canvas).toHaveScreenshot("catalog-damper.png");
+
+  await page.mouse.move(box.x + placedAt.x, box.y + placedAt.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + placedAt.x + 60, box.y + placedAt.y + 40, { steps: 8 });
+  await page.mouse.up();
+  const movedX = Number(await xInput.inputValue());
+  expect(movedX).toBeGreaterThan(initialX);
+
+  await inspector.getByRole("button", { name: "ロック", exact: true }).click();
+  const beforeLockedDrag = await xInput.inputValue();
+  await page.mouse.move(box.x + placedAt.x + 60, box.y + placedAt.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(box.x + placedAt.x + 120, box.y + placedAt.y + 70, { steps: 8 });
+  await page.mouse.up();
+  await expect(xInput).toHaveValue(beforeLockedDrag);
+
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("ダンパー");
+  await expect(inspector.getByRole("button", { name: "ロック解除", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  const structurePart = page.getByRole("button", { name: "ダンパー c", exact: true });
+  await expect(structurePart).toBeVisible();
+  await structurePart.click();
+  await page.getByRole("button", { name: "ダンパーをロック解除", exact: true }).click();
+  await expect(inspector.getByRole("button", { name: "ロック", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "ダンパーを非表示", exact: true }).click();
+  await expect(page.getByRole("button", { name: "ダンパーを表示", exact: true })).toBeVisible();
+});
+
+test("Catalog discovery: command search finds aliases and places the real component", async ({ page }) => {
+  const command = page.getByPlaceholder("操作・部品を検索…");
+  await command.fill("空気抵抗");
+  const result = page.getByRole("button", { name: /^抗力を追加/ });
+  await expect(result).toBeVisible();
+  await result.click();
+
+  await page.getByTestId("editor-canvas").click({ position: { x: 560, y: 250 } });
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("抗力");
+  await expect(inspector.getByRole("textbox", { name: "ラベル", exact: true })).toHaveValue("D");
+});
