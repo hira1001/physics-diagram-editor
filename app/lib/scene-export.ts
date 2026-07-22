@@ -1,6 +1,13 @@
 import type { SceneState } from "@/app/lib/editor-types";
 import { blockRotationDegrees, effectiveSurfaceAngle, massLabelBaseX, surfaceContactClearance } from "@/app/lib/physics-rules";
 import { diagramElementsToSvg } from "@/app/lib/catalog-svg";
+import type { ExportBackground } from "@/app/lib/export-types";
+
+export interface SvgExportOptions {
+  background?: ExportBackground;
+  margin?: number;
+  selectedId?: SceneState["selectedId"];
+}
 
 function escapeXml(value: string) {
   return value
@@ -15,7 +22,12 @@ function escapeXml(value: string) {
  * Produces a deterministic, editable SVG representation of the current scene.
  * The element order is the export z-order: structure, object, vectors, labels.
  */
-export function sceneToSvg(scene: SceneState) {
+export function sceneToSvg(scene: SceneState, options: SvgExportOptions = {}) {
+  const margin = Math.max(0, Math.min(200, Math.round(options.margin ?? 0)));
+  const background = options.background ?? "white";
+  const selectedId = options.selectedId;
+  const selectedElementId = selectedId?.startsWith("element:") ? selectedId.slice("element:".length) : null;
+  const include = (id: NonNullable<SceneState["selectedId"]>) => !selectedId || selectedId === id;
   const effectiveAngle = effectiveSurfaceAngle(scene);
   const angle = (effectiveAngle * Math.PI) / 180;
   const direction = scene.flipped ? -1 : 1;
@@ -65,5 +77,13 @@ export function sceneToSvg(scene: SceneState) {
     }).join("")
     : "";
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#18202b"/></marker></defs><rect data-layer="paper" width="900" height="560" fill="white"/><path data-layer="structure" data-surface-kind="${scene.surfaceKind}" data-surface-roughness="${scene.surfaceRoughness}" d="${structurePath}" fill="none" stroke="#18202b" stroke-width="3"/>${roughMarks}<g data-layer="object" transform="translate(${block.x} ${block.y}) rotate(${blockRotation})"><rect x="-70" y="-45" width="140" height="90" fill="white" stroke="#18202b" stroke-width="3"/></g>${scene.showGravity ? arrow(block.x, block.y, block.x, block.y + 120, "mg") : ""}${scene.showNormal ? arrow(block.x, block.y, block.x + normal.x * 120, block.y + normal.y * 120, "N") : ""}${scene.showFriction ? arrow(block.x, block.y, block.x + tangent.x * 120, block.y + tangent.y * 120, "f") : ""}<g data-layer="label" transform="translate(${block.x} ${block.y}) rotate(${blockRotation})"><text x="${massLabelBaseX(scene) + scene.massLabelOffsetX}" y="${18 + scene.massLabelOffsetY}" text-anchor="middle" font-size="30" font-style="italic">${safeMass}</text></g>${scene.showAngle && scene.surfaceKind === "incline" ? `<path data-layer="structure" d="M${baselineArcPoint.x},${baselineArcPoint.y} A70 70 0 0 ${scene.flipped ? 1 : 0} ${slopeArcPoint.x},${slopeArcPoint.y}" fill="none" stroke="#18202b" stroke-width="2"/><text data-layer="label" x="${angleLabel.x}" y="${angleLabel.y}" font-size="25" font-style="italic">θ</text>` : ""}${scene.showAnnotation ? `<text data-layer="label" x="${scene.annotationX * 900}" y="${scene.annotationY * 560}" text-anchor="middle" font-size="20">${safeText}</text>` : ""}${diagramElementsToSvg(scene.elements)}</svg>`;
+  const width = 900 + margin * 2;
+  const height = 560 + margin * 2;
+  const paper = background === "white" ? `<rect data-layer="paper" x="${-margin}" y="${-margin}" width="${width}" height="${height}" fill="white"/>` : "";
+  const legacyStructure = include("incline") ? `<path data-layer="structure" data-surface-kind="${scene.surfaceKind}" data-surface-roughness="${scene.surfaceRoughness}" d="${structurePath}" fill="none" stroke="#18202b" stroke-width="3"/>${roughMarks}` : "";
+  const legacyObject = include("block") || include("mass-label") ? `<g data-layer="object" transform="translate(${block.x} ${block.y}) rotate(${blockRotation})"><rect x="-70" y="-45" width="140" height="90" fill="white" stroke="#18202b" stroke-width="3"/></g>` : "";
+  const massLabel = include("block") || include("mass-label") ? `<g data-layer="label" transform="translate(${block.x} ${block.y}) rotate(${blockRotation})"><text x="${massLabelBaseX(scene) + scene.massLabelOffsetX}" y="${18 + scene.massLabelOffsetY}" text-anchor="middle" font-size="30" font-style="italic">${safeMass}</text></g>` : "";
+  const catalogElements = selectedElementId ? scene.elements.filter((element) => element.id === selectedElementId) : scene.elements;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${-margin} ${-margin} ${width} ${height}"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#18202b"/></marker></defs>${paper}${legacyStructure}${legacyObject}${scene.showGravity && include("force-gravity") ? arrow(block.x, block.y, block.x, block.y + 120, "mg") : ""}${scene.showNormal && include("force-normal") ? arrow(block.x, block.y, block.x + normal.x * 120, block.y + normal.y * 120, "N") : ""}${scene.showFriction && include("force-friction") ? arrow(block.x, block.y, block.x + tangent.x * 120, block.y + tangent.y * 120, "f") : ""}${massLabel}${scene.showAngle && scene.surfaceKind === "incline" && include("angle") ? `<path data-layer="structure" d="M${baselineArcPoint.x},${baselineArcPoint.y} A70 70 0 0 ${scene.flipped ? 1 : 0} ${slopeArcPoint.x},${slopeArcPoint.y}" fill="none" stroke="#18202b" stroke-width="2"/><text data-layer="label" x="${angleLabel.x}" y="${angleLabel.y}" font-size="25" font-style="italic">θ</text>` : ""}${scene.showAnnotation && include("text") ? `<text data-layer="label" x="${scene.annotationX * 900}" y="${scene.annotationY * 560}" text-anchor="middle" font-size="20">${safeText}</text>` : ""}${diagramElementsToSvg(catalogElements)}</svg>`;
 }

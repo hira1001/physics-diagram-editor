@@ -4,6 +4,7 @@ import { INITIAL_SCENE } from "../app/lib/editor-types";
 import { PHYSICS_COMPONENT_CATALOG } from "../app/lib/component-catalog";
 import { readFile } from "node:fs/promises";
 import JSZip from "jszip";
+import { PNG } from "pngjs";
 
 async function openCleanEditor(page: Page) {
   await page.goto("/");
@@ -420,8 +421,9 @@ test("OUT-007/010: PPTX download is valid and keeps catalog parts as separate na
   await page.getByTestId("editor-canvas").click({ position: { x: 520, y: 490 } });
 
   await page.getByRole("button", { name: "出力", exact: true }).click();
+  const exportDialog = page.getByRole("dialog", { name: "出力設定" });
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: /PowerPoint/ }).click();
+  await exportDialog.getByRole("button", { name: "出力", exact: true }).click();
   const download = await downloadPromise;
   const path = await download.path();
   if (!path) throw new Error("PPTX download path is unavailable");
@@ -432,6 +434,110 @@ test("OUT-007/010: PPTX download is valid and keeps catalog parts as separate na
   expect(archive.file("ppt/presentation.xml")).not.toBeNull();
   expect(slideXml).toContain(":block");
   expect(slideXml).toContain(":label");
+});
+
+test("OUT-002/003/005/006/011/012/013: output settings change the generated files", async ({ page }) => {
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await expect(dialog.getByLabel("出力形式")).toHaveValue("pptx");
+  await expect(dialog.getByLabel("出力範囲")).toHaveValue("current");
+  await expect(dialog.getByLabel("出力背景")).toHaveValue("white");
+  await expect(dialog.getByLabel("出力余白")).toHaveValue("24");
+
+  await dialog.getByLabel("出力形式").selectOption("svg");
+  await dialog.getByLabel("出力範囲").selectOption("selection");
+  await dialog.getByLabel("出力背景").selectOption("transparent");
+  await dialog.getByLabel("出力余白").fill("32");
+  const svgDownloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const svgDownload = await svgDownloadPromise;
+  const svgPath = await svgDownload.path();
+  if (!svgPath) throw new Error("SVG download path is unavailable");
+  const svg = await readFile(svgPath, "utf8");
+  expect(svgDownload.suggestedFilename()).toBe("図1.svg");
+  expect(svg).toContain('width="964" height="624" viewBox="-32 -32 964 624"');
+  expect(svg).not.toContain('data-layer="paper"');
+  expect(svg).toContain('data-layer="structure"');
+  expect(svg).not.toContain('data-layer="object"');
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  await dialog.getByLabel("出力形式").selectOption("png");
+  await dialog.getByLabel("出力範囲").selectOption("current");
+  await dialog.getByLabel("出力背景").selectOption("transparent");
+  await dialog.getByLabel("出力余白").fill("10");
+  const pngDownloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const pngPath = await (await pngDownloadPromise).path();
+  if (!pngPath) throw new Error("PNG download path is unavailable");
+  const png = await readFile(pngPath);
+  expect(png.subarray(1, 4).toString("ascii")).toBe("PNG");
+  expect(png.readUInt32BE(16)).toBe(1840);
+  expect(png.readUInt32BE(20)).toBe(1160);
+  const decodedPng = PNG.sync.read(png);
+  expect(decodedPng.data[3]).toBe(0);
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  await dialog.getByLabel("出力形式").selectOption("pdf");
+  await dialog.getByLabel("出力範囲").selectOption("all");
+  const pdfDownloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const pdfPath = await (await pdfDownloadPromise).path();
+  if (!pdfPath) throw new Error("PDF download path is unavailable");
+  const pdf = await readFile(pdfPath);
+  expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+  expect(pdf.toString("latin1")).toContain("/Count 2");
+  expect(pdf.toString("latin1")).not.toContain("/Subtype /Image");
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  await dialog.getByLabel("出力形式").selectOption("pptx");
+  await dialog.getByLabel("出力範囲").selectOption("all");
+  const pptxDownloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const pptxPath = await (await pptxDownloadPromise).path();
+  if (!pptxPath) throw new Error("PPTX download path is unavailable");
+  const pptxArchive = await JSZip.loadAsync(await readFile(pptxPath));
+  expect(pptxArchive.file("ppt/slides/slide1.xml")).not.toBeNull();
+  expect(pptxArchive.file("ppt/slides/slide2.xml")).not.toBeNull();
+});
+
+test("OUT-014/019/020/021: automatic quality warnings identify and focus their target", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  await librarySearch.fill("直方体");
+  const blockTool = page.getByRole("button", { name: "物体 m", exact: true });
+  await blockTool.click();
+  await page.getByTestId("editor-canvas").click({ position: { x: 520, y: 300 } });
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await inspector.getByRole("spinbutton", { name: "X", exact: true }).fill("930");
+  await inspector.getByRole("spinbutton", { name: "X", exact: true }).press("Enter");
+  await inspector.getByRole("spinbutton", { name: "Y", exact: true }).fill("200");
+  await inspector.getByRole("spinbutton", { name: "Y", exact: true }).press("Enter");
+  await blockTool.click();
+  await page.getByTestId("editor-canvas").click({ position: { x: 600, y: 300 } });
+  await inspector.getByRole("spinbutton", { name: "X", exact: true }).fill("930");
+  await inspector.getByRole("spinbutton", { name: "X", exact: true }).press("Enter");
+  await inspector.getByRole("spinbutton", { name: "Y", exact: true }).fill("200");
+  await inspector.getByRole("spinbutton", { name: "Y", exact: true }).press("Enter");
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await expect(dialog.getByText(/件の確認事項/)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /部品ラベルが重なっています/ })).toBeVisible();
+  await expect(dialog.getByText(/が用紙外にあります/).first()).toBeVisible();
+  await dialog.getByRole("button", { name: /部品ラベルが重なっています/ }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("物体");
+});
+
+test("OUT-025: empty pages are explained and never downloaded", async ({ page }) => {
+  await page.getByRole("button", { name: "図を追加", exact: true }).click();
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await expect(dialog.getByText("出力できる部品がありません", { exact: true })).toBeVisible();
+  let downloaded = false;
+  page.once("download", () => { downloaded = true; });
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("空の図は出力できません");
+  expect(downloaded).toBe(false);
 });
 
 test("PHY-028/029: body suggestions create a foreground force that follows the body", async ({ page }) => {

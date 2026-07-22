@@ -6,14 +6,11 @@ import {
   ChevronDown,
   CircleHelp,
   Copy,
-  FileImage,
-  FileText,
   Grid3X3,
   Layers3,
   Maximize2,
   Minus,
   Plus,
-  Presentation,
   Settings2,
   Sparkles,
   X,
@@ -34,9 +31,12 @@ import {
   type WorkspaceState,
 } from "@/app/lib/editor-types";
 import { sceneToSvg } from "@/app/lib/scene-export";
+import { svgToPngBlob, svgsToPdfBlob } from "@/app/lib/browser-export";
+import { inspectExportQuality } from "@/app/lib/export-quality";
+import { DEFAULT_EXPORT_SETTINGS, type ExportSettings } from "@/app/lib/export-types";
 import { addCatalogElementsToPptx } from "@/app/lib/catalog-pptx";
 import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/app/lib/workspace-storage";
-import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
+import { blockRotationDegrees, effectiveSurfaceAngle, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
 import { componentToolId, PHYSICS_COMPONENT_CATALOG } from "@/app/lib/component-catalog";
 
 type LibraryTab = "add" | "structure";
@@ -54,6 +54,19 @@ function downloadBlob(blob: Blob, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(link.href), 500);
 }
 
+function exportScene(scene: SceneState, settings: ExportSettings) {
+  return sceneToSvg(scene, {
+    background: settings.background,
+    margin: settings.margin,
+    selectedId: settings.range === "selection" ? scene.selectedId : null,
+  });
+}
+
+function selectedCatalogElements(scene: SceneState) {
+  const selectedId = scene.selectedId?.startsWith("element:") ? scene.selectedId.slice("element:".length) : null;
+  return selectedId ? scene.elements.filter((element) => element.id === selectedId) : scene.elements;
+}
+
 export function PhysicsEditor() {
   const [workspace, setWorkspace] = useState<WorkspaceState>(INITIAL_WORKSPACE);
   const [undoStack, setUndoStack] = useState<WorkspaceState[]>([]);
@@ -64,12 +77,15 @@ export function PhysicsEditor() {
   const [commandQuery, setCommandQuery] = useState("");
   const [commandOpen, setCommandOpen] = useState(false);
   const [flyout, setFlyout] = useState<Flyout>(null);
-  const [canvasNode, setCanvasNode] = useState<HTMLCanvasElement | null>(null);
+  const [, setCanvasNode] = useState<HTMLCanvasElement | null>(null);
   const [saveStatus, setSaveStatus] = useState<"error" | "saved" | "saving">("saved");
   const [systemNotice, setSystemNotice] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(true);
   const [tourStep, setTourStep] = useState(0);
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [exportSettings, setExportSettings] = useState<ExportSettings>(DEFAULT_EXPORT_SETTINGS);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
   const activePage = workspace.pages.find((page) => page.id === workspace.activePageId) ?? workspace.pages[0];
 
@@ -203,25 +219,34 @@ export function PhysicsEditor() {
     setActiveTool("select");
   }, [addFreeBodyPage, recordWorkspace, workspace]);
 
-  const exportPng = useCallback(() => {
-    if (!canvasNode) return;
-    canvasNode.toBlob((blob) => { if (blob) downloadBlob(blob, `${activePage.title}.png`); }, "image/png");
-    setFlyout(null);
-  }, [activePage.title, canvasNode]);
+  const exportPages = useMemo(() => exportSettings.range === "all" ? workspace.pages : [activePage], [activePage, exportSettings.range, workspace.pages]);
+
+  const exportPng = useCallback(async () => {
+    for (const page of exportPages) {
+      const blob = await svgToPngBlob(exportScene(page.scene, exportSettings));
+      downloadBlob(blob, `${page.title}.png`);
+    }
+  }, [exportPages, exportSettings]);
+
+  const exportSvg = useCallback(() => {
+    for (const page of exportPages) {
+      downloadBlob(new Blob([exportScene(page.scene, exportSettings)], { type: "image/svg+xml;charset=utf-8" }), `${page.title}.svg`);
+    }
+  }, [exportPages, exportSettings]);
 
   const copySvg = useCallback(async () => {
-    await navigator.clipboard.writeText(sceneToSvg(activePage.scene));
-    setFlyout(null);
-  }, [activePage.scene]);
+    await navigator.clipboard.writeText(exportScene(activePage.scene, { ...exportSettings, format: "svg", range: exportSettings.range === "selection" ? "selection" : "current" }));
+    setSystemNotice("SVGをクリップボードへコピーしました");
+  }, [activePage.scene, exportSettings]);
+
+  const exportPdf = useCallback(async () => {
+    const blob = await svgsToPdfBlob(exportPages.map((page) => exportScene(page.scene, exportSettings)));
+    downloadBlob(blob, `${exportSettings.range === "all" ? "全図" : activePage.title}.pdf`);
+  }, [activePage.title, exportPages, exportSettings]);
 
   const qualityIssues = useMemo(() => {
-    const issues: string[] = [];
-    if (!activePage.scene.massLabel.trim()) issues.push("質量ラベルが空です");
-    if (activePage.scene.angle < 5 || activePage.scene.angle > 75) issues.push("斜面角が範囲外です");
-    if (activePage.scene.forceScale < 0.5) issues.push("力ベクトルが短すぎます");
-    if (hasSurfaceConflict(activePage.scene)) issues.push("滑らかな面に摩擦力が残っています");
-    return issues;
-  }, [activePage.scene]);
+    return inspectExportQuality(exportPages);
+  }, [exportPages]);
 
   const exportPptx = useCallback(async () => {
     const { default: PptxGenJS } = await import("pptxgenjs");
@@ -229,20 +254,24 @@ export function PhysicsEditor() {
     pptx.layout = "LAYOUT_WIDE";
     pptx.author = "Physics Diagram Editor";
     pptx.subject = "Editable mechanics diagram";
+    for (const page of exportPages) {
+    const scene = page.scene;
+    const include = (id: NonNullable<SceneState["selectedId"]>) => exportSettings.range !== "selection" || scene.selectedId === id;
     const slide = pptx.addSlide();
-    slide.background = { color: "FFFFFF" };
-    const effectiveAngle = effectiveSurfaceAngle(activePage.scene);
+    if (exportSettings.background === "white") slide.background = { color: "FFFFFF" };
+    const effectiveAngle = effectiveSurfaceAngle(scene);
     const angle = (effectiveAngle * Math.PI) / 180;
-    const direction = activePage.scene.flipped ? -1 : 1;
-    const startX = (activePage.scene.flipped ? 11.1 : 2.2) + activePage.scene.diagramOffsetX * 0.01;
-    const startY = 5.8 + activePage.scene.diagramOffsetY * 0.01;
-    const length = activePage.scene.surfaceKind === "wall" ? 5 : 6.6;
+    const direction = scene.flipped ? -1 : 1;
+    const marginInches = exportSettings.margin * 0.01;
+    const startX = (scene.flipped ? 11.1 : 2.2) + scene.diagramOffsetX * 0.01 + (scene.flipped ? -marginInches : marginInches);
+    const startY = 5.8 + scene.diagramOffsetY * 0.01 - marginInches;
+    const length = scene.surfaceKind === "wall" ? 5 : 6.6;
     const endX = startX + direction * Math.cos(angle) * length;
     const endY = startY - Math.sin(angle) * length;
-    slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: endY - startY, line: { color: "18202B", width: 1.8 } });
+    if (include("incline")) slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: endY - startY, line: { color: "18202B", width: 1.8 } });
     const normalX = -direction * Math.sin(angle);
     const normalY = -Math.cos(angle);
-    if (activePage.scene.surfaceRoughness === "rough") {
+    if (scene.surfaceRoughness === "rough" && include("incline")) {
       for (let index = 1; index < 18; index += 1) {
         const t = index / 18;
         const x = startX + (endX - startX) * t;
@@ -256,35 +285,63 @@ export function PhysicsEditor() {
         });
       }
     }
-    if (activePage.scene.surfaceKind === "incline") {
+    if (scene.surfaceKind === "incline" && include("incline")) {
       slide.addShape(pptx.ShapeType.line, { x: endX, y: endY, w: 0, h: startY - endY, line: { color: "18202B", width: 1.8 } });
       slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: 0, line: { color: "18202B", width: 1.8 } });
     }
-    const clearance = surfaceContactClearance(activePage.scene.surfaceKind) * 0.01;
-    const centerX = startX + (endX - startX) * activePage.scene.blockPosition + normalX * clearance + activePage.scene.blockOffsetX * 0.01;
-    const centerY = startY + (endY - startY) * activePage.scene.blockPosition + normalY * clearance + activePage.scene.blockOffsetY * 0.01;
+    const clearance = surfaceContactClearance(scene.surfaceKind) * 0.01;
+    const centerX = startX + (endX - startX) * scene.blockPosition + normalX * clearance + scene.blockOffsetX * 0.01;
+    const centerY = startY + (endY - startY) * scene.blockPosition + normalY * clearance + scene.blockOffsetY * 0.01;
     const blockX = centerX - 0.6;
     const blockY = centerY - 0.45;
-    slide.addText(activePage.scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: blockRotationDegrees(activePage.scene), align: "center", valign: "middle", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
-    if (activePage.scene.showGravity) {
+    if (include("block") || include("mass-label")) slide.addText(scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: blockRotationDegrees(scene), align: "center", valign: "middle", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
+    if (scene.showGravity && include("force-gravity")) {
       slide.addShape(pptx.ShapeType.line, { x: centerX, y: centerY, w: 0, h: 1.5, line: { color: "18202B", width: 1.8, endArrowType: "triangle" } });
       slide.addText("mg", { x: centerX + 0.08, y: centerY + 1.05, w: 0.7, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
-    if (activePage.scene.showNormal) {
+    if (scene.showNormal && include("force-normal")) {
       slide.addShape(pptx.ShapeType.line, { x: centerX + normalX * 1.5, y: centerY - Math.cos(angle) * 1.5, w: -normalX * 1.5, h: Math.cos(angle) * 1.5, line: { color: "18202B", width: 1.8, beginArrowType: "triangle" } });
       slide.addText("N", { x: centerX + normalX * 1.6 - 0.2, y: centerY - Math.cos(angle) * 1.6 - 0.3, w: 0.5, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
-    if (activePage.scene.showFriction) {
+    if (scene.showFriction && include("force-friction")) {
       slide.addShape(pptx.ShapeType.line, { x: centerX, y: centerY, w: direction * Math.cos(angle) * 1.5, h: -Math.sin(angle) * 1.5, line: { color: "18202B", width: 1.8, endArrowType: "triangle" } });
       slide.addText("f", { x: centerX + direction * Math.cos(angle) * 1.5, y: centerY - Math.sin(angle) * 1.5 - 0.25, w: 0.4, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
-    if (activePage.scene.surfaceKind === "incline" && activePage.scene.showAngle) {
-      slide.addText(`θ = ${activePage.scene.angle}°`, { x: startX + 0.6, y: startY - 0.55, w: 1.2, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 18, margin: 0 });
+    if (scene.surfaceKind === "incline" && scene.showAngle && include("angle")) {
+      slide.addText(`θ = ${scene.angle}°`, { x: startX + 0.6, y: startY - 0.55, w: 1.2, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 18, margin: 0 });
     }
-    addCatalogElementsToPptx(slide, pptx.ShapeType, activePage.scene.elements);
-    await pptx.writeFile({ fileName: `${activePage.title}.pptx` });
+    addCatalogElementsToPptx(slide, pptx.ShapeType, exportSettings.range === "selection" ? selectedCatalogElements(scene) : scene.elements);
+    }
+    await pptx.writeFile({ fileName: `${exportSettings.range === "all" ? "全図" : activePage.title}.pptx` });
+  }, [activePage.title, exportPages, exportSettings]);
+
+  const runExport = useCallback(async () => {
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      if (exportSettings.range === "selection" && !activePage.scene.selectedId) throw new Error("出力する部品を選択してください");
+      if (qualityIssues.some((issue) => issue.code === "empty-document")) throw new Error("空の図は出力できません。部品を追加してください");
+      if (exportSettings.format === "pptx") await exportPptx();
+      if (exportSettings.format === "png") await exportPng();
+      if (exportSettings.format === "svg") exportSvg();
+      if (exportSettings.format === "pdf") await exportPdf();
+      setSystemNotice(`${exportSettings.format.toUpperCase()}を出力しました`);
+      setFlyout(null);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "出力に失敗しました。もう一度お試しください");
+    } finally {
+      setExportBusy(false);
+    }
+  }, [activePage.scene.selectedId, exportPdf, exportPng, exportPptx, exportSettings, exportSvg, qualityIssues]);
+
+  const focusQualityIssue = useCallback((issue: (typeof qualityIssues)[number]) => {
+    setWorkspace((current) => ({
+      ...current,
+      activePageId: issue.pageId,
+      pages: current.pages.map((page) => page.id === issue.pageId ? { ...page, scene: { ...page.scene, selectedId: issue.targetId } } : page),
+    }));
     setFlyout(null);
-  }, [activePage]);
+  }, []);
 
   const commands = useMemo<EditorCommandItem[]>(() => [
     { id: "incline-30", label: "斜面を30°に設定", detail: "選択中の斜面の角度を固定", icon: "incline", run: () => updateScene({ angle: 30, selectedId: "incline" }) },
@@ -294,7 +351,7 @@ export function PhysicsEditor() {
     { id: "free-body", label: "自由体図を生成", detail: "変量を共有した別タブを作成", icon: "freebody", run: addFreeBodyPage },
     { id: "grid", label: "グリッドを切り替え", detail: activePage.scene.grid ? "グリッドを非表示" : "グリッドを表示", icon: "grid", run: () => updateScene({ grid: !activePage.scene.grid }) },
     { id: "panels", label: "左パネルを切り替え", detail: "作図領域を拡大", shortcut: "⌘B", icon: "panel", run: () => setWorkspace((current) => ({ ...current, leftPanelVisible: !current.leftPanelVisible })) },
-    { id: "export", label: "PPTXとして出力", detail: "PowerPointで編集可能な図形", icon: "export", run: () => setFlyout("export") },
+    { id: "export", label: "図を出力", detail: "PPTX・SVG・PNG・PDF", icon: "export", run: () => setFlyout("export") },
     ...PHYSICS_COMPONENT_CATALOG.map((item): EditorCommandItem => ({
       id: `add-part-${item.kind}`,
       label: `${item.name}を追加`,
@@ -387,15 +444,18 @@ export function PhysicsEditor() {
       ) : null}
 
       {flyout === "export" ? (
-        <div className="export-flyout">
+        <div aria-label="出力設定" className="export-flyout" role="dialog">
           <div className="flyout-heading"><div><small>出力</small><strong>{activePage.title}</strong></div><button aria-label="出力を閉じる" type="button" onClick={() => setFlyout(null)}><X size={14} /></button></div>
-          <div className={`quality-state ${qualityIssues.length ? "warning" : ""}`}><Check size={15} /><span><strong>{qualityIssues.length ? `${qualityIssues.length}件の確認事項` : "品質チェック完了"}</strong><small>{qualityIssues[0] ?? "ラベル・角度・線長に問題はありません"}</small></span></div>
-          <div className="export-options">
-            <button type="button" onClick={exportPptx}><Presentation size={18} /><span><strong>PowerPoint</strong><small>編集可能な図形</small></span></button>
-            <button type="button" onClick={exportPng}><FileImage size={18} /><span><strong>PNG</strong><small>現在の表示</small></span></button>
-            <button type="button" onClick={copySvg}><Copy size={18} /><span><strong>SVGをコピー</strong><small>ベクター形式</small></span></button>
-            <button type="button" onClick={() => window.print()}><FileText size={18} /><span><strong>PDF</strong><small>印刷ダイアログ</small></span></button>
+          <div className={`quality-state ${qualityIssues.length ? "warning" : ""}`}><Check size={15} /><span><strong>{qualityIssues.length ? `${qualityIssues.length}件の確認事項` : "品質チェック完了"}</strong><small>{qualityIssues[0]?.message ?? "重複・制約・参照・用紙範囲に問題はありません"}</small></span></div>
+          {qualityIssues.length ? <div className="quality-list" aria-label="品質チェック結果">{qualityIssues.map((issue, index) => <button key={`${issue.pageId}-${issue.code}-${index}`} type="button" onClick={() => focusQualityIssue(issue)}><span className={`quality-severity ${issue.severity}`} />{issue.message}<small>対象へ移動</small></button>)}</div> : null}
+          <div className="export-fields">
+            <label><span>形式</span><select aria-label="出力形式" value={exportSettings.format} onChange={(event) => setExportSettings((current) => ({ ...current, format: event.target.value as ExportSettings["format"] }))}><option value="pptx">PowerPoint (.pptx)</option><option value="svg">SVG</option><option value="png">PNG</option><option value="pdf">PDF</option></select></label>
+            <label><span>範囲</span><select aria-label="出力範囲" value={exportSettings.range} onChange={(event) => setExportSettings((current) => ({ ...current, range: event.target.value as ExportSettings["range"] }))}><option value="current">現在の図</option><option value="all">すべての図</option><option value="selection">選択部品</option></select></label>
+            <label><span>背景</span><select aria-label="出力背景" value={exportSettings.background} onChange={(event) => setExportSettings((current) => ({ ...current, background: event.target.value as ExportSettings["background"] }))}><option value="white">白</option><option value="transparent">透明</option></select></label>
+            <label><span>余白</span><span className="margin-field"><input aria-label="出力余白" min="0" max="200" type="number" value={exportSettings.margin} onChange={(event) => setExportSettings((current) => ({ ...current, margin: Math.max(0, Math.min(200, Number(event.target.value) || 0)) }))} /><small>px</small></span></label>
           </div>
+          {exportError ? <div className="export-error" role="alert">{exportError}</div> : null}
+          <div className="export-actions">{exportSettings.format === "svg" ? <button type="button" onClick={copySvg}><Copy size={14} />SVGをコピー</button> : <span />}<button className="primary" disabled={exportBusy} type="button" onClick={runExport}>{exportBusy ? "生成中…" : "出力"}</button></div>
         </div>
       ) : null}
 

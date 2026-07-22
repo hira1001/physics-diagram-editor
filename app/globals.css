@@ -1249,7 +1249,9 @@ kbd {
 .export-flyout {
   top: 39px;
   right: 8px;
-  width: 300px;
+  width: 348px;
+  max-height: calc(100vh - 52px);
+  overflow: auto;
   padding: 8px;
 }
 
@@ -1367,6 +1369,136 @@ kbd {
 .export-options strong,
 .export-options small {
   display: block;
+}
+
+.quality-list {
+  display: grid;
+  max-height: 126px;
+  gap: 3px;
+  margin: -2px 0 8px;
+  overflow: auto;
+}
+
+.quality-list button {
+  display: grid;
+  min-height: 30px;
+  grid-template-columns: 7px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  background: #fff;
+  text-align: left;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.quality-list button:hover {
+  border-color: #cfb56e;
+  background: #fffaf0;
+}
+
+.quality-list button small {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.quality-severity {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c38b20;
+}
+
+.quality-severity.error {
+  background: #b64a42;
+}
+
+.export-fields {
+  display: grid;
+  gap: 1px;
+  margin-bottom: 8px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.export-fields > label {
+  display: grid;
+  min-height: 37px;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.export-fields select,
+.export-fields input {
+  width: 100%;
+  height: 27px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text);
+  background: #fff;
+  font: inherit;
+}
+
+.margin-field {
+  display: grid;
+  grid-template-columns: 1fr 24px;
+  align-items: center;
+  gap: 5px;
+}
+
+.margin-field small {
+  color: var(--text-faint);
+  font-size: 9px;
+}
+
+.export-error {
+  margin-bottom: 8px;
+  padding: 7px 8px;
+  border: 1px solid #e1b9b6;
+  border-radius: 4px;
+  color: #8b302b;
+  background: #fff4f3;
+  font-size: 9px;
+}
+
+.export-actions {
+  display: flex;
+  min-height: 31px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.export-actions button {
+  display: inline-flex;
+  min-height: 29px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: #fff;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.export-actions button.primary {
+  min-width: 92px;
+  border-color: var(--blue-deep);
+  color: #fff;
+  background: var(--blue-deep);
+}
+
+.export-actions button:disabled {
+  cursor: wait;
+  opacity: .6;
 }
 
 .export-options strong {
