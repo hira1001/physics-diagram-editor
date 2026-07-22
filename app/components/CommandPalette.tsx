@@ -1,13 +1,13 @@
 "use client";
 
-import { Box, Download, Gauge, Grid3X3, MoveUpRight, PanelLeftClose, Search, Slash } from "lucide-react";
+import { Box, Download, Gauge, Grid3X3, Layers3, MoveUpRight, PanelLeftClose, Search, Slash } from "lucide-react";
 
 export interface EditorCommandItem {
   id: string;
   label: string;
   detail: string;
   shortcut?: string;
-  icon: "incline" | "box" | "force" | "angle" | "grid" | "panel" | "export";
+  icon: "incline" | "box" | "force" | "angle" | "grid" | "panel" | "export" | "freebody";
   run: () => void;
 }
 
@@ -25,6 +25,7 @@ const icons = {
   grid: Grid3X3,
   panel: PanelLeftClose,
   export: Download,
+  freebody: Layers3,
 };
 
 export function CommandPalette({ commands, query, onClose }: CommandPaletteProps) {
@@ -50,4 +51,3 @@ export function CommandPalette({ commands, query, onClose }: CommandPaletteProps
     </div>
   );
 }
-

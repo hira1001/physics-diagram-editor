@@ -140,7 +140,15 @@ export function PhysicsEditor() {
   const addFreeBodyPage = useCallback(() => {
     const existing = workspace.pages.find((page) => page.kind === "freebody");
     if (existing) {
-      setWorkspace((current) => ({ ...current, activePageId: existing.id }));
+      if (existing.id === workspace.activePageId) return;
+      recordWorkspace(workspace);
+      setWorkspace((current) => ({
+        ...current,
+        activePageId: existing.id,
+        pages: current.pages.map((page) => page.id === existing.id
+          ? { ...page, scene: { ...activePage.scene, selectedId: "block" } }
+          : page),
+      }));
       return;
     }
     recordWorkspace(workspace);
@@ -185,7 +193,7 @@ export function PhysicsEditor() {
     slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: 0, line: { color: "18202B", width: 1.8 } });
     const blockX = startX + (endX - startX) * activePage.scene.blockPosition - 0.6;
     const blockY = startY + (endY - startY) * activePage.scene.blockPosition - 0.7;
-    slide.addText(activePage.scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: -activePage.scene.angle, align: "center", valign: "mid", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
+    slide.addText(activePage.scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: -activePage.scene.angle, align: "center", valign: "middle", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
     const centerX = blockX + 0.6;
     const centerY = blockY + 0.45;
     if (activePage.scene.showGravity) {
