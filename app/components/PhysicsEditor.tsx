@@ -34,6 +34,7 @@ import {
   type WorkspaceState,
 } from "@/app/lib/editor-types";
 import { sceneToSvg } from "@/app/lib/scene-export";
+import { addCatalogElementsToPptx } from "@/app/lib/catalog-pptx";
 import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/app/lib/workspace-storage";
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
 import { componentToolId, PHYSICS_COMPONENT_CATALOG } from "@/app/lib/component-catalog";
@@ -280,6 +281,7 @@ export function PhysicsEditor() {
     if (activePage.scene.surfaceKind === "incline" && activePage.scene.showAngle) {
       slide.addText(`θ = ${activePage.scene.angle}°`, { x: startX + 0.6, y: startY - 0.55, w: 1.2, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 18, margin: 0 });
     }
+    addCatalogElementsToPptx(slide, pptx.ShapeType, activePage.scene.elements);
     await pptx.writeFile({ fileName: `${activePage.title}.pptx` });
     setFlyout(null);
   }, [activePage]);

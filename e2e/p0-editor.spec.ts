@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { createGeometry } from "../app/components/EditorCanvas";
 import { INITIAL_SCENE } from "../app/lib/editor-types";
 import { PHYSICS_COMPONENT_CATALOG } from "../app/lib/component-catalog";
+import { readFile } from "node:fs/promises";
+import JSZip from "jszip";
 
 async function openCleanEditor(page: Page) {
   await page.goto("/");
@@ -409,6 +411,27 @@ test("PHY-075: every standard component name and alias is discoverable and every
 
   await page.getByRole("tab", { name: "構造", exact: true }).click();
   await expect(page.locator(".catalog-structure")).toHaveCount(PHYSICS_COMPONENT_CATALOG.length);
+});
+
+test("OUT-007/010: PPTX download is valid and keeps catalog parts as separate named objects", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  await librarySearch.fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  await page.getByTestId("editor-canvas").click({ position: { x: 520, y: 490 } });
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: /PowerPoint/ }).click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  if (!path) throw new Error("PPTX download path is unavailable");
+  const archive = await JSZip.loadAsync(await readFile(path));
+  const slideXml = await archive.file("ppt/slides/slide1.xml")!.async("string");
+
+  expect(download.suggestedFilename()).toBe("図1.pptx");
+  expect(archive.file("ppt/presentation.xml")).not.toBeNull();
+  expect(slideXml).toContain(":block");
+  expect(slideXml).toContain(":label");
 });
 
 test("PHY-028/029: body suggestions create a foreground force that follows the body", async ({ page }) => {
