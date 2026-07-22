@@ -47,7 +47,6 @@ export function CommandPalette({ commands, query, onClose }: CommandPaletteProps
           );
         }) : <p className="empty-command">一致する操作がありません</p>}
       </div>
-      <footer><span>↑↓ 選択</span><span>↵ 実行</span><span>Esc 閉じる</span></footer>
     </div>
   );
 }

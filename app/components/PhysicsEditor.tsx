@@ -22,12 +22,14 @@ import { CommandPalette, type EditorCommandItem } from "@/app/components/Command
 import { EditorCanvas } from "@/app/components/EditorCanvas";
 import { InspectorPanel } from "@/app/components/InspectorPanel";
 import { LibraryPanel } from "@/app/components/LibraryPanel";
+import { TemplateDialog } from "@/app/components/TemplateDialog";
 import { TopBar } from "@/app/components/TopBar";
 import {
   INITIAL_SCENE,
   INITIAL_WORKSPACE,
   type DiagramPage,
   type SceneState,
+  type TemplateId,
   type ToolId,
   type WorkspaceState,
 } from "@/app/lib/editor-types";
@@ -51,15 +53,22 @@ function downloadBlob(blob: Blob, fileName: string) {
 
 function sceneToSvg(scene: SceneState) {
   const angle = (scene.angle * Math.PI) / 180;
-  const start = { x: 120, y: 430 };
+  const direction = scene.flipped ? -1 : 1;
+  const start = { x: (scene.flipped ? 780 : 120) + scene.diagramOffsetX, y: 430 + scene.diagramOffsetY };
   const length = 560;
-  const end = { x: start.x + Math.cos(angle) * length, y: start.y - Math.sin(angle) * length };
-  const tangent = { x: Math.cos(angle), y: -Math.sin(angle) };
-  const normal = { x: -Math.sin(angle), y: -Math.cos(angle) };
+  const end = { x: start.x + direction * Math.cos(angle) * length, y: start.y - Math.sin(angle) * length };
+  const tangent = { x: direction * Math.cos(angle), y: -Math.sin(angle) };
+  const normal = { x: -direction * Math.sin(angle), y: -Math.cos(angle) };
   const linePoint = { x: start.x + tangent.x * length * scene.blockPosition, y: start.y + tangent.y * length * scene.blockPosition };
-  const block = { x: linePoint.x + normal.x * 55, y: linePoint.y + normal.y * 55 };
+  const block = { x: linePoint.x + normal.x * 55 + scene.blockOffsetX, y: linePoint.y + normal.y * 55 + scene.blockOffsetY };
   const arrow = (x1: number, y1: number, x2: number, y2: number, label: string) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#18202b" stroke-width="3" marker-end="url(#arrow)"/><text x="${x2 + 12}" y="${y2}" font-size="24" font-style="italic">${label}</text>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#18202b"/></marker></defs><rect width="900" height="560" fill="white"/><path d="M${start.x},${start.y} L${end.x},${end.y} L${end.x},${start.y} Z" fill="none" stroke="#18202b" stroke-width="3"/><g transform="translate(${block.x} ${block.y}) rotate(${-scene.angle})"><rect x="-70" y="-45" width="140" height="90" fill="white" stroke="#18202b" stroke-width="3"/><text x="0" y="9" text-anchor="middle" font-size="30" font-style="italic">${scene.massLabel}</text></g>${scene.showGravity ? arrow(block.x, block.y, block.x, block.y + 120, "mg") : ""}${scene.showNormal ? arrow(block.x, block.y, block.x + normal.x * 120, block.y + normal.y * 120, "N") : ""}${scene.showFriction ? arrow(block.x, block.y, block.x + tangent.x * 120, block.y + tangent.y * 120, "f") : ""}${scene.showAngle ? `<path d="M${start.x + 70},${start.y} A70 70 0 0 0 ${start.x + Math.cos(angle) * 70},${start.y - Math.sin(angle) * 70}" fill="none" stroke="#18202b" stroke-width="2"/><text x="${start.x + 80}" y="${start.y - 24}" font-size="25" font-style="italic">θ</text>` : ""}</svg>`;
+  const angleLabelDirection = scene.flipped ? Math.PI + angle / 2 : -angle / 2;
+  const angleLabel = { x: start.x + Math.cos(angleLabelDirection) * 90 + scene.angleLabelOffsetX, y: start.y + Math.sin(angleLabelDirection) * 90 + scene.angleLabelOffsetY };
+  const baselineArcPoint = { x: start.x + direction * 70, y: start.y };
+  const slopeArcPoint = { x: start.x + tangent.x * 70, y: start.y + tangent.y * 70 };
+  const safeText = scene.annotationText.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const safeMass = scene.massLabel.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#18202b"/></marker></defs><rect width="900" height="560" fill="white"/><path d="M${start.x},${start.y} L${end.x},${end.y} L${end.x},${start.y} Z" fill="none" stroke="#18202b" stroke-width="3"/>${scene.showGravity ? arrow(block.x, block.y, block.x, block.y + 120, "mg") : ""}${scene.showNormal ? arrow(block.x, block.y, block.x + normal.x * 120, block.y + normal.y * 120, "N") : ""}${scene.showFriction ? arrow(block.x, block.y, block.x + tangent.x * 120, block.y + tangent.y * 120, "f") : ""}<g transform="translate(${block.x} ${block.y}) rotate(${scene.flipped ? scene.angle : -scene.angle})"><rect x="-70" y="-45" width="140" height="90" fill="white" stroke="#18202b" stroke-width="3"/><text x="${-25 + scene.massLabelOffsetX}" y="${18 + scene.massLabelOffsetY}" text-anchor="middle" font-size="30" font-style="italic">${safeMass}</text></g>${scene.showAngle ? `<path d="M${baselineArcPoint.x},${baselineArcPoint.y} A70 70 0 0 ${scene.flipped ? 1 : 0} ${slopeArcPoint.x},${slopeArcPoint.y}" fill="none" stroke="#18202b" stroke-width="2"/><text x="${angleLabel.x}" y="${angleLabel.y}" font-size="25" font-style="italic">θ</text>` : ""}${scene.showAnnotation ? `<text x="${scene.annotationX * 900}" y="${scene.annotationY * 560}" text-anchor="middle" font-size="20">${safeText}</text>` : ""}</svg>`;
 }
 
 export function PhysicsEditor() {
@@ -76,6 +85,8 @@ export function PhysicsEditor() {
   const [zoom, setZoom] = useState(100);
   const [tourOpen, setTourOpen] = useState(true);
   const [tourStep, setTourStep] = useState(0);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
   const activePage = workspace.pages.find((page) => page.id === workspace.activePageId) ?? workspace.pages[0];
 
   useEffect(() => {
@@ -84,7 +95,13 @@ export function PhysicsEditor() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as WorkspaceState;
-        if (parsed.pages?.length) restoredWorkspace = parsed;
+        if (parsed.pages?.length) {
+          restoredWorkspace = {
+            ...INITIAL_WORKSPACE,
+            ...parsed,
+            pages: parsed.pages.map((page) => ({ ...page, scene: { ...INITIAL_SCENE, ...page.scene } })),
+          };
+        }
       } catch {
         window.localStorage.removeItem(STORAGE_KEY);
       }
@@ -163,6 +180,27 @@ export function PhysicsEditor() {
     setWorkspace((current) => ({ ...current, activePageId: page.id, pages: [...current.pages, page] }));
   }, [recordWorkspace, workspace]);
 
+  const applyTemplate = useCallback((template: TemplateId) => {
+    setTemplateOpen(false);
+    if (template === "freebody") {
+      addFreeBodyPage();
+      return;
+    }
+    recordWorkspace(workspace);
+    const templateScene: SceneState = {
+      ...INITIAL_SCENE,
+      showFriction: template === "incline" || template === "pulley",
+      showPulley: template === "pulley",
+      showSpring: template === "spring",
+      selectedId: template === "pulley" ? "pulley" : template === "spring" ? "spring" : "incline",
+    };
+    setWorkspace((current) => ({
+      ...current,
+      pages: current.pages.map((page) => page.id === current.activePageId ? { ...page, kind: "incline", scene: templateScene } : page),
+    }));
+    setActiveTool("select");
+  }, [addFreeBodyPage, recordWorkspace, workspace]);
+
   const exportPng = useCallback(() => {
     if (!canvasNode) return;
     canvasNode.toBlob((blob) => { if (blob) downloadBlob(blob, `${activePage.title}.png`); }, "image/png");
@@ -174,6 +212,14 @@ export function PhysicsEditor() {
     setFlyout(null);
   }, [activePage.scene]);
 
+  const qualityIssues = useMemo(() => {
+    const issues: string[] = [];
+    if (!activePage.scene.massLabel.trim()) issues.push("質量ラベルが空です");
+    if (activePage.scene.angle < 5 || activePage.scene.angle > 75) issues.push("斜面角が範囲外です");
+    if (activePage.scene.forceScale < 0.5) issues.push("力ベクトルが短すぎます");
+    return issues;
+  }, [activePage.scene]);
+
   const exportPptx = useCallback(async () => {
     const { default: PptxGenJS } = await import("pptxgenjs");
     const pptx = new PptxGenJS();
@@ -183,17 +229,18 @@ export function PhysicsEditor() {
     const slide = pptx.addSlide();
     slide.background = { color: "FFFFFF" };
     const angle = (activePage.scene.angle * Math.PI) / 180;
-    const startX = 2.2;
-    const startY = 5.8;
+    const direction = activePage.scene.flipped ? -1 : 1;
+    const startX = (activePage.scene.flipped ? 11.1 : 2.2) + activePage.scene.diagramOffsetX * 0.01;
+    const startY = 5.8 + activePage.scene.diagramOffsetY * 0.01;
     const length = 6.6;
-    const endX = startX + Math.cos(angle) * length;
+    const endX = startX + direction * Math.cos(angle) * length;
     const endY = startY - Math.sin(angle) * length;
     slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: endY - startY, line: { color: "18202B", width: 1.8 } });
     slide.addShape(pptx.ShapeType.line, { x: endX, y: endY, w: 0, h: startY - endY, line: { color: "18202B", width: 1.8 } });
     slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: 0, line: { color: "18202B", width: 1.8 } });
-    const blockX = startX + (endX - startX) * activePage.scene.blockPosition - 0.6;
-    const blockY = startY + (endY - startY) * activePage.scene.blockPosition - 0.7;
-    slide.addText(activePage.scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: -activePage.scene.angle, align: "center", valign: "middle", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
+    const blockX = startX + (endX - startX) * activePage.scene.blockPosition - 0.6 + activePage.scene.blockOffsetX * 0.01;
+    const blockY = startY + (endY - startY) * activePage.scene.blockPosition - 0.7 + activePage.scene.blockOffsetY * 0.01;
+    slide.addText(activePage.scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: activePage.scene.flipped ? activePage.scene.angle : -activePage.scene.angle, align: "center", valign: "middle", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
     const centerX = blockX + 0.6;
     const centerY = blockY + 0.45;
     if (activePage.scene.showGravity) {
@@ -201,12 +248,13 @@ export function PhysicsEditor() {
       slide.addText("mg", { x: centerX + 0.08, y: centerY + 1.05, w: 0.7, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
     if (activePage.scene.showNormal) {
-      slide.addShape(pptx.ShapeType.line, { x: centerX - Math.sin(angle) * 1.5, y: centerY - Math.cos(angle) * 1.5, w: Math.sin(angle) * 1.5, h: Math.cos(angle) * 1.5, line: { color: "18202B", width: 1.8, beginArrowType: "triangle" } });
-      slide.addText("N", { x: centerX - Math.sin(angle) * 1.6 - 0.2, y: centerY - Math.cos(angle) * 1.6 - 0.3, w: 0.5, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
+      const normalX = -direction * Math.sin(angle);
+      slide.addShape(pptx.ShapeType.line, { x: centerX + normalX * 1.5, y: centerY - Math.cos(angle) * 1.5, w: -normalX * 1.5, h: Math.cos(angle) * 1.5, line: { color: "18202B", width: 1.8, beginArrowType: "triangle" } });
+      slide.addText("N", { x: centerX + normalX * 1.6 - 0.2, y: centerY - Math.cos(angle) * 1.6 - 0.3, w: 0.5, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
     if (activePage.scene.showFriction) {
-      slide.addShape(pptx.ShapeType.line, { x: centerX, y: centerY, w: Math.cos(angle) * 1.5, h: -Math.sin(angle) * 1.5, line: { color: "18202B", width: 1.8, endArrowType: "triangle" } });
-      slide.addText("f", { x: centerX + Math.cos(angle) * 1.5, y: centerY - Math.sin(angle) * 1.5 - 0.25, w: 0.4, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
+      slide.addShape(pptx.ShapeType.line, { x: centerX, y: centerY, w: direction * Math.cos(angle) * 1.5, h: -Math.sin(angle) * 1.5, line: { color: "18202B", width: 1.8, endArrowType: "triangle" } });
+      slide.addText("f", { x: centerX + direction * Math.cos(angle) * 1.5, y: centerY - Math.sin(angle) * 1.5 - 0.25, w: 0.4, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
     slide.addText(`θ = ${activePage.scene.angle}°`, { x: startX + 0.6, y: startY - 0.55, w: 1.2, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 18, margin: 0 });
     await pptx.writeFile({ fileName: `${activePage.title}.pptx` });
@@ -214,14 +262,14 @@ export function PhysicsEditor() {
   }, [activePage]);
 
   const commands = useMemo<EditorCommandItem[]>(() => [
-    { id: "incline-30", label: "斜面を30°に設定", detail: "選択中の斜面の角度を固定", shortcut: "P 30", icon: "incline", run: () => updateScene({ angle: 30, selectedId: "incline" }) },
-    { id: "add-block", label: "物体を斜面に追加", detail: "接触制約付きで配置", shortcut: "B", icon: "box", run: () => updateScene({ selectedId: "block" }) },
-    { id: "add-forces", label: "基本の力を追加", detail: "mg・N・fを候補から追加", shortcut: "F", icon: "force", run: () => updateScene({ showGravity: true, showNormal: true, showFriction: true, selectedId: "force-gravity" }) },
-    { id: "add-angle", label: "角度 θ を表示", detail: "斜面と水平線の交角", shortcut: "A", icon: "angle", run: () => updateScene({ showAngle: true, selectedId: "angle" }) },
-    { id: "free-body", label: "自由体図を生成", detail: "変量を共有した別タブを作成", shortcut: "⇧F", icon: "freebody", run: addFreeBodyPage },
-    { id: "grid", label: "グリッドを切り替え", detail: activePage.scene.grid ? "グリッドを非表示" : "グリッドを表示", shortcut: "G", icon: "grid", run: () => updateScene({ grid: !activePage.scene.grid }) },
+    { id: "incline-30", label: "斜面を30°に設定", detail: "選択中の斜面の角度を固定", icon: "incline", run: () => updateScene({ angle: 30, selectedId: "incline" }) },
+    { id: "add-block", label: "物体を斜面に追加", detail: "接触制約付きで配置", icon: "box", run: () => updateScene({ selectedId: "block" }) },
+    { id: "add-forces", label: "基本の力を追加", detail: "mg・N・fを候補から追加", icon: "force", run: () => updateScene({ showGravity: true, showNormal: true, showFriction: true, selectedId: "force-gravity" }) },
+    { id: "add-angle", label: "角度 θ を表示", detail: "斜面と水平線の交角", icon: "angle", run: () => updateScene({ showAngle: true, selectedId: "angle" }) },
+    { id: "free-body", label: "自由体図を生成", detail: "変量を共有した別タブを作成", icon: "freebody", run: addFreeBodyPage },
+    { id: "grid", label: "グリッドを切り替え", detail: activePage.scene.grid ? "グリッドを非表示" : "グリッドを表示", icon: "grid", run: () => updateScene({ grid: !activePage.scene.grid }) },
     { id: "panels", label: "左パネルを切り替え", detail: "作図領域を拡大", shortcut: "⌘B", icon: "panel", run: () => setWorkspace((current) => ({ ...current, leftPanelVisible: !current.leftPanelVisible })) },
-    { id: "export", label: "PPTXとして出力", detail: "PowerPointで編集可能な図形", shortcut: "⇧⌘E", icon: "export", run: () => setFlyout("export") },
+    { id: "export", label: "PPTXとして出力", detail: "PowerPointで編集可能な図形", icon: "export", run: () => setFlyout("export") },
   ], [activePage.scene.grid, addFreeBodyPage, updateScene]);
 
   useEffect(() => {
@@ -241,7 +289,7 @@ export function PhysicsEditor() {
         event.preventDefault(); if (event.shiftKey) redo(); else undo(); return;
       }
       if (event.key === "Escape") {
-        setCommandOpen(false); setFlyout(null); setActiveTool("select"); return;
+        setCommandOpen(false); setFlyout(null); setTemplateOpen(false); setActiveTool("select"); return;
       }
       if (!isTyping) {
         const shortcuts: Record<string, ToolId> = { p: "incline", b: "block", f: "force", a: "angle", x: "axis", s: "spring", u: "pulley", t: "text", v: "select" };
@@ -256,12 +304,15 @@ export function PhysicsEditor() {
 
   const handleToolPick = useCallback((tool: ToolId) => {
     setActiveTool(tool);
+    if (activePage.kind === "blank") {
+      setWorkspace((current) => ({ ...current, pages: current.pages.map((page) => page.id === current.activePageId ? { ...page, kind: "incline" } : page) }));
+    }
     if (tool === "incline") updateScene({ selectedId: "incline" });
     if (tool === "angle") updateScene({ showAngle: true, selectedId: "angle" });
     if (tool === "axis") updateScene({ showAxis: true, selectedId: "axis" });
     if (tool === "spring") updateScene({ showSpring: true, selectedId: "spring" });
     if (tool === "pulley") updateScene({ showPulley: true, selectedId: "pulley" });
-  }, [updateScene]);
+  }, [activePage.kind, updateScene]);
 
   const finishTour = useCallback(() => {
     setTourOpen(false);
@@ -287,7 +338,7 @@ export function PhysicsEditor() {
 
       {flyout === "menu" ? (
         <div className="menu-flyout">
-          <div className="flyout-heading"><strong>表示設定</strong><button type="button" onClick={() => setFlyout(null)}><X size={14} /></button></div>
+          <div className="flyout-heading"><strong>表示設定</strong><button aria-label="メニューを閉じる" type="button" onClick={() => setFlyout(null)}><X size={14} /></button></div>
           <label className="menu-row"><span><Settings2 size={15} />UI密度</span><select value={workspace.density} onChange={(event) => setWorkspace((current) => ({ ...current, density: event.target.value as WorkspaceState["density"] }))}><option value="standard">標準</option><option value="compact">コンパクト</option></select></label>
           <button className="menu-row" type="button" onClick={() => setTourOpen(true)}><span><CircleHelp size={15} />60秒ガイド</span><ChevronDown size={14} /></button>
           <button className="menu-row" type="button" onClick={() => setWorkspace(INITIAL_WORKSPACE)}><span><Sparkles size={15} />サンプルを復元</span></button>
@@ -296,16 +347,14 @@ export function PhysicsEditor() {
 
       {flyout === "export" ? (
         <div className="export-flyout">
-          <div className="flyout-heading"><div><small>出力</small><strong>{activePage.title}</strong></div><button type="button" onClick={() => setFlyout(null)}><X size={14} /></button></div>
-          <div className="quality-state"><Check size={15} /><span><strong>品質チェック完了</strong><small>重なり・未定義の変量はありません</small></span></div>
+          <div className="flyout-heading"><div><small>出力</small><strong>{activePage.title}</strong></div><button aria-label="出力を閉じる" type="button" onClick={() => setFlyout(null)}><X size={14} /></button></div>
+          <div className={`quality-state ${qualityIssues.length ? "warning" : ""}`}><Check size={15} /><span><strong>{qualityIssues.length ? `${qualityIssues.length}件の確認事項` : "品質チェック完了"}</strong><small>{qualityIssues[0] ?? "ラベル・角度・線長に問題はありません"}</small></span></div>
           <div className="export-options">
             <button type="button" onClick={exportPptx}><Presentation size={18} /><span><strong>PowerPoint</strong><small>編集可能な図形</small></span></button>
             <button type="button" onClick={exportPng}><FileImage size={18} /><span><strong>PNG</strong><small>現在の表示</small></span></button>
             <button type="button" onClick={copySvg}><Copy size={18} /><span><strong>SVGをコピー</strong><small>ベクター形式</small></span></button>
             <button type="button" onClick={() => window.print()}><FileText size={18} /><span><strong>PDF</strong><small>印刷ダイアログ</small></span></button>
           </div>
-          <label className="export-check"><input type="checkbox" defaultChecked />透明背景</label>
-          <label className="export-check"><input type="checkbox" defaultChecked />余白を自動調整</label>
         </div>
       ) : null}
 
@@ -314,8 +363,11 @@ export function PhysicsEditor() {
           <LibraryPanel
             activeTab={libraryTab}
             activeTool={activeTool}
+            pageTitle={activePage.title}
             query={libraryQuery}
             scene={activePage.scene}
+            onApplyTemplate={applyTemplate}
+            onOpenTemplates={() => setTemplateOpen(true)}
             onQueryChange={setLibraryQuery}
             onSceneChange={updateScene}
             onSelect={(selectedId) => updateScene({ selectedId })}
@@ -328,38 +380,42 @@ export function PhysicsEditor() {
           activeTool={activeTool}
           pageKind={activePage.kind}
           scene={activePage.scene}
+          zoom={zoom}
           onCanvasReady={setCanvasNode}
           onCommitSnapshot={commitSnapshot}
+          onPointerPositionChange={setPointerPosition}
           onSceneChange={updateScene}
           onToolComplete={() => setActiveTool("select")}
         />
 
-        {workspace.rightPanelVisible ? <InspectorPanel scene={activePage.scene} onCreateFreeBody={addFreeBodyPage} onSceneChange={updateScene} /> : null}
+        {workspace.rightPanelVisible ? <InspectorPanel pageKind={activePage.kind} scene={activePage.scene} onCreateFreeBody={addFreeBodyPage} onSceneChange={updateScene} /> : null}
       </div>
 
       <footer className="statusbar">
         <div className="page-tabs">
           {workspace.pages.map((page) => (
-            <button className={page.id === workspace.activePageId ? "active" : ""} type="button" key={page.id} onClick={() => setWorkspace((current) => ({ ...current, activePageId: page.id }))}>
+            <button aria-current={page.id === workspace.activePageId ? "page" : undefined} className={page.id === workspace.activePageId ? "active" : ""} type="button" key={page.id} onClick={() => setWorkspace((current) => ({ ...current, activePageId: page.id }))}>
               {page.kind === "freebody" ? <Layers3 size={13} /> : null}{page.title}
             </button>
           ))}
           <button className="add-page" type="button" onClick={addBlankPage} aria-label="図を追加"><Plus size={14} /></button>
         </div>
-        <div className="drawing-status"><span>x: 482</span><span>y: 316</span><span>θ: {activePage.scene.angle}°</span><button className={activePage.scene.grid ? "active" : ""} type="button" onClick={() => updateScene({ grid: !activePage.scene.grid })}><Grid3X3 size={13} />GRID</button><span>SNAP</span></div>
-        <div className="zoom-controls"><button type="button" onClick={() => setZoom((value) => Math.max(50, value - 10))}><Minus size={13} /></button><span>{zoom}%</span><button type="button" onClick={() => setZoom((value) => Math.min(180, value + 10))}><Plus size={13} /></button><button type="button" title="全体表示"><Maximize2 size={13} /></button></div>
+        <div className="drawing-status"><span>x: {pointerPosition.x}</span><span>y: {pointerPosition.y}</span><span>θ: {activePage.scene.angle}°</span><button className={activePage.scene.grid ? "active" : ""} type="button" onClick={() => updateScene({ grid: !activePage.scene.grid })}><Grid3X3 size={13} />GRID</button><button className={activePage.scene.snapEnabled ? "active" : ""} type="button" onClick={() => updateScene({ snapEnabled: !activePage.scene.snapEnabled })}>SNAP</button></div>
+        <div className="zoom-controls"><button type="button" aria-label="縮小" onClick={() => setZoom((value) => Math.max(50, value - 10))}><Minus size={13} /></button><span>{zoom}%</span><button type="button" aria-label="拡大" onClick={() => setZoom((value) => Math.min(180, value + 10))}><Plus size={13} /></button><button type="button" title="全体表示" onClick={() => { setZoom(100); updateScene({ diagramOffsetX: 0, diagramOffsetY: 0 }); }}><Maximize2 size={13} /></button></div>
       </footer>
 
       {tourOpen ? (
         <aside className="tour-card">
           <div className="tour-progress"><span style={{ width: `${((tourStep + 1) / 3) * 100}%` }} /></div>
-          <button className="tour-close" type="button" onClick={finishTour}><X size={14} /></button>
+          <button aria-label="ガイドを閉じる" className="tour-close" type="button" onClick={finishTour}><X size={14} /></button>
           <small>60秒ガイド · {tourStep + 1}/3</small>
-          <strong>{tourStep === 0 ? "斜面を選択しました" : tourStep === 1 ? "角度を数値で変更" : "Tab補完で要素を追加"}</strong>
-          <p>{tourStep === 0 ? "青い端点をドラッグすると、斜面角と関連要素が追従します。" : tourStep === 1 ? "図上の θ = 30° をクリックし、数値を入力してみましょう。" : "斜面の頂点へカーソルを近づけ、角度や法線を追加できます。"}</p>
+          <strong>{tourStep === 0 ? "斜面を選択しました" : tourStep === 1 ? "角度を数値で変更" : "頂点の候補から追加"}</strong>
+          <p>{tourStep === 0 ? "青い端点をドラッグすると、斜面角と関連要素が追従します。" : tourStep === 1 ? "図上の θ = 30° をクリックし、数値を入力してみましょう。" : "斜面の頂点へカーソルを近づけ、表示された候補をクリックできます。"}</p>
           <div><button type="button" onClick={finishTour}>スキップ</button><button className="primary" type="button" onClick={() => tourStep < 2 ? setTourStep((step) => step + 1) : finishTour()}>{tourStep < 2 ? "次へ" : "完了"}</button></div>
         </aside>
       ) : null}
+
+      {templateOpen ? <TemplateDialog onApply={applyTemplate} onClose={() => setTemplateOpen(false)} /> : null}
     </div>
   );
 }
