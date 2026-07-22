@@ -7,7 +7,7 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
-import { resolveDiagramElement } from "@/app/lib/diagram-model";
+import { isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 
 interface EditorCanvasProps {
   activeTool: ToolId;
@@ -211,7 +211,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.clip();
 
   if (pageKind === "blank") {
-    for (const element of scene.elements) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
+    for (const element of [...scene.elements.filter((item) => !isVectorElement(item.kind)), ...scene.elements.filter((item) => isVectorElement(item.kind))]) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
     ctx.restore();
     return geometry;
   }
@@ -239,6 +239,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.fillStyle = "#637083";
     ctx.font = `${Math.max(12, 14 * scale)}px system-ui, sans-serif`;
     ctx.fillText("選択した物体の自由体図", artboard.x + 28, artboard.y + 38);
+    for (const element of [...scene.elements.filter((item) => !isVectorElement(item.kind)), ...scene.elements.filter((item) => isVectorElement(item.kind))]) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
     ctx.restore();
     return geometry;
   }
@@ -379,7 +380,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.fillText(scene.annotationText, geometry.annotationPoint.x, geometry.annotationPoint.y);
   }
 
-  for (const element of scene.elements) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
+  for (const element of [...scene.elements.filter((item) => !isVectorElement(item.kind)), ...scene.elements.filter((item) => isVectorElement(item.kind))]) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
 
   if (scene.selectedId && scene.selectedId.startsWith("force-")) {
     const endpoint = scene.selectedId === "force-gravity" ? geometry.forceGravityEnd : scene.selectedId === "force-normal" ? geometry.forceNormalEnd : geometry.forceFrictionEnd;
@@ -399,8 +400,9 @@ function hitTest(point: Point, geometry: Geometry, scene: SceneState): Selection
     const selectedElement = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
     if (selectedElement && diagramElementContainsPoint(resolveDiagramElement(selectedElement, scene.elements), contentPoint)) return scene.selectedId;
   }
-  for (let index = scene.elements.length - 1; index >= 0; index -= 1) {
-    const element = resolveDiagramElement(scene.elements[index], scene.elements);
+  const layeredElements = [...scene.elements.filter((item) => !isVectorElement(item.kind)), ...scene.elements.filter((item) => isVectorElement(item.kind))];
+  for (let index = layeredElements.length - 1; index >= 0; index -= 1) {
+    const element = resolveDiagramElement(layeredElements[index], scene.elements);
     if (`element:${element.id}` === scene.selectedId) continue;
     if (diagramElementContainsPoint(element, contentPoint)) return `element:${element.id}`;
   }
@@ -603,6 +605,18 @@ export function EditorCanvas({
       const elementId = scene.selectedId.slice("element:".length);
       const original = startScene.elements.find((item) => item.id === elementId);
       if (!original) return;
+      if (original.referenceTargetId && isVectorElement(original.kind)) {
+        const target = scene.elements.find((item) => item.id === original.referenceTargetId);
+        if (!target) return;
+        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
+        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
+        const dx = contentX - target.x;
+        const dy = contentY - target.y;
+        const nextWidth = clamp(Math.hypot(dx, dy), 8, 1000);
+        const nextRotation = Math.atan2(dy, dx) * 180 / Math.PI;
+        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: nextWidth, rotation: nextRotation } : item) }, false);
+        return;
+      }
       let nextX = original.x + (point.x - startPoint.x) / geometry.scale;
       let nextY = original.y + (point.y - startPoint.y) / geometry.scale;
       if (scene.snapEnabled && !event.altKey) {

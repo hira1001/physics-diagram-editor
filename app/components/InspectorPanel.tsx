@@ -15,7 +15,7 @@ import { NumericInput } from "@/app/components/NumericInput";
 import type { DiagramElement, PageKind, SceneState } from "@/app/lib/editor-types";
 import { hasSurfaceConflict, surfaceDisplayName } from "@/app/lib/physics-rules";
 import { catalogEntry } from "@/app/lib/component-catalog";
-import { createVariableForElement, findElementDependencies, isConnectionElement } from "@/app/lib/diagram-model";
+import { contextCandidatesForElement, createReferencedElement, createVariableForElement, findElementDependencies, isConnectionElement, isVectorElement } from "@/app/lib/diagram-model";
 
 interface InspectorPanelProps {
   scene: SceneState;
@@ -25,7 +25,7 @@ interface InspectorPanelProps {
   onSceneChange: (patch: Partial<SceneState>, record?: boolean) => void;
 }
 
-type SectionKey = "dimensions" | "quick" | "variables" | "constraints" | "appearance";
+type SectionKey = "dimensions" | "quick" | "suggestions" | "variables" | "constraints" | "appearance";
 
 const selectionNames: Record<string, string> = {
   incline: "斜面",
@@ -92,6 +92,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     dimensions: true,
     quick: true,
+    suggestions: true,
     variables: true,
     constraints: true,
     appearance: false,
@@ -111,6 +112,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
   const isFreeBody = pageKind === "freebody";
   const surfaceConflict = hasSurfaceConflict(scene);
   const selectedVariables = selectedElement ? scene.variables.filter((variable) => variable.referenceIds.includes(selectedElement.id)) : [];
+  const contextCandidates = selectedElement ? contextCandidatesForElement(selectedElement) : [];
   const selectedDependencies = selectedElement ? findElementDependencies(selectedElement.id, scene.elements, scene.variables, scene.constraints) : null;
   const hasDependencies = Boolean(selectedDependencies && (selectedDependencies.connections.length || selectedDependencies.constraints.length || selectedDependencies.variables.length));
   const [deletePending, setDeletePending] = useState(false);
@@ -145,7 +147,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
     if (!selectedElement) return;
     onSceneChange({
       constraints: scene.constraints.filter((constraint) => !constraint.targetIds.includes(selectedElement.id)),
-      elements: scene.elements.filter((item) => item.id !== selectedElement.id && item.startTargetId !== selectedElement.id && item.endTargetId !== selectedElement.id),
+      elements: scene.elements.filter((item) => item.id !== selectedElement.id && item.startTargetId !== selectedElement.id && item.endTargetId !== selectedElement.id && item.referenceTargetId !== selectedElement.id),
       selectedId: null,
       variables: scene.variables.filter((variable) => !variable.referenceIds.includes(selectedElement.id)),
     });
@@ -168,9 +170,10 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
               <label className="property-row"><span>始点</span><select aria-label="接続の始点" value={selectedElement.startTargetId ?? ""} onChange={(event) => updateConnectionTarget("startTargetId", event.target.value)}><option value="">未接続</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>
               <label className="property-row"><span>終点</span><select aria-label="接続の終点" value={selectedElement.endTargetId ?? ""} onChange={(event) => updateConnectionTarget("endTargetId", event.target.value)}><option value="">未接続</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>
             </> : null}
+            {isVectorElement(selectedElement.kind) ? <label className="property-row"><span>作用対象</span><select aria-label="ベクトルの作用対象" value={selectedElement.referenceTargetId ?? ""} onChange={(event) => updateSelectedElement({ referenceTargetId: event.target.value || null })}><option value="">独立</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isVectorElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label> : null}
             {!(isConnectionElement(selectedElement.kind) && selectedElement.startTargetId && selectedElement.endTargetId) ? <>
-              <label className="property-row"><span>X</span><ElementNumericInput element={selectedElement} property="x" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-              <label className="property-row"><span>Y</span><ElementNumericInput element={selectedElement} property="y" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+              {!selectedElement.referenceTargetId ? <><label className="property-row"><span>X</span><ElementNumericInput element={selectedElement} property="x" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+              <label className="property-row"><span>Y</span><ElementNumericInput element={selectedElement} property="y" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label></> : <div className="property-note"><Link2 size={13} />作用対象の移動へ追従</div>}
               <label className="property-row"><span>幅</span><ElementNumericInput element={selectedElement} property="width" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
               <label className="property-row"><span>高さ</span><ElementNumericInput element={selectedElement} property="height" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
               <label className="property-row"><span>回転</span><div className="unit-input"><ElementNumericInput element={selectedElement} property="rotation" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></div></label>
@@ -235,6 +238,24 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
           </>}
         </div> : null}
       </section>
+
+      {selectedElement && contextCandidates.length ? <section className={`inspector-section ${openSections.suggestions ? "open" : ""}`}>
+        <button aria-expanded={openSections.suggestions} className="inspector-heading" type="button" onClick={() => toggleSection("suggestions")}><span>物理候補</span><ChevronDown size={14} /></button>
+        {openSections.suggestions ? <div className="quick-grid physics-candidates">
+          {contextCandidates.map((kind) => {
+            const definition = catalogEntry(kind);
+            const exists = scene.elements.some((item) => item.kind === kind && item.referenceTargetId === selectedElement.id);
+            return <button disabled={exists && kind !== "force"} key={kind} type="button" onClick={() => {
+              const added = createReferencedElement(kind, selectedElement);
+              onSceneChange({
+                elements: [...scene.elements, added],
+                selectedId: `element:${added.id}`,
+                variables: [...scene.variables, createVariableForElement(added)],
+              });
+            }}><MoveUpRight size={15} />{exists && kind !== "force" ? `${definition.defaultLabel || definition.name} 追加済み` : definition.defaultLabel || definition.name}</button>;
+          })}
+        </div> : null}
+      </section> : null}
 
       <section className={`inspector-section ${openSections.variables ? "open" : ""}`}>
         <button aria-expanded={openSections.variables} className="inspector-heading" type="button" onClick={() => toggleSection("variables")}><span>変量</span><ChevronDown size={14} /></button>

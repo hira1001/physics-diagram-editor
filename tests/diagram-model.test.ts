@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createDiagramElement } from "@/app/lib/component-catalog";
 import {
   createConnection,
+  createReferencedElement,
   createVariableForElement,
+  contextCandidatesForElement,
   findElementDependencies,
   resolveDiagramElement,
   validateModelReferences,
@@ -23,6 +25,14 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     const mass = createDiagramElement("point-mass", 100, 100, "mass-a");
     const variable = createVariableForElement(mass, "variable-mass-a");
     expect(variable).toEqual({ id: "variable-mass-a", referenceIds: ["mass-a"], symbol: "m", type: "mass", unit: "kg", value: "" });
+  });
+
+  it("offers deterministic body actions and keeps an attached force on its target", () => {
+    const body = createDiagramElement("block", 100, 100, "body-a");
+    expect(contextCandidatesForElement(body)).toEqual(expect.arrayContaining(["gravity", "normal-force", "friction-force", "tension", "force", "velocity", "acceleration"]));
+    const gravity = createReferencedElement("gravity", body, "gravity-a");
+    expect(gravity).toMatchObject({ referenceTargetId: "body-a", rotation: 90, x: 100, y: 165 });
+    expect(resolveDiagramElement(gravity, [{ ...body, x: 240, y: 80 }, gravity])).toMatchObject({ x: 240, y: 145 });
   });
 
   it("reports dependencies and all orphan or self references", () => {

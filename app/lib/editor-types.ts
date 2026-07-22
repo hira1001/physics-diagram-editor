@@ -22,6 +22,7 @@ export interface DiagramElement {
   label: string;
   locked: boolean;
   rotation: number;
+  referenceTargetId: string | null;
   startTargetId: string | null;
   visible: boolean;
   width: number;

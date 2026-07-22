@@ -122,6 +122,7 @@ export function createDiagramElement(kind: DiagramElementKind, x: number, y: num
     label: definition.defaultLabel,
     locked: false,
     rotation,
+    referenceTargetId: null,
     startTargetId: null,
     visible: true,
     width: definition.defaultWidth,

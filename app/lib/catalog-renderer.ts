@@ -8,7 +8,7 @@ function line(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number,
   ctx.stroke();
 }
 
-function arrow(ctx: CanvasRenderingContext2D, length: number, label: string) {
+function arrow(ctx: CanvasRenderingContext2D, length: number, label: string, elementRotation = 0) {
   const start = -length / 2;
   const end = length / 2;
   line(ctx, start, 0, end, 0);
@@ -18,7 +18,19 @@ function arrow(ctx: CanvasRenderingContext2D, length: number, label: string) {
   ctx.lineTo(end - 13, 6);
   ctx.closePath();
   ctx.fill();
-  if (label) ctx.fillText(label, end - 4, -12);
+  if (label) {
+    const worldOffsetX = 16;
+    const worldOffsetY = -10;
+    const localOffsetX = worldOffsetX * Math.cos(elementRotation) + worldOffsetY * Math.sin(elementRotation);
+    const localOffsetY = -worldOffsetX * Math.sin(elementRotation) + worldOffsetY * Math.cos(elementRotation);
+    ctx.save();
+    ctx.translate(end + localOffsetX, localOffsetY);
+    ctx.rotate(-elementRotation);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, 0, 0);
+    ctx.restore();
+  }
 }
 
 function spring(ctx: CanvasRenderingContext2D, width: number) {
@@ -73,7 +85,7 @@ export function drawDiagramElement(
     case "point-mass":
       ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); drawText(ctx, element.label, 18, -12); break;
     case "block":
-      ctx.fillStyle = "#fff"; ctx.fillRect(-w / 2, -h / 2, w, h); ctx.strokeRect(-w / 2, -h / 2, w, h); ctx.fillStyle = "#18202b"; drawText(ctx, element.label); break;
+      ctx.fillStyle = "#fff"; ctx.fillRect(-w / 2, -h / 2, w, h); ctx.strokeRect(-w / 2, -h / 2, w, h); ctx.fillStyle = "#18202b"; drawText(ctx, element.label, -w * .2, 7); break;
     case "sphere":
       ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, Math.min(w, h) / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#18202b"; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill(); drawText(ctx, element.label, 0, 8); break;
     case "disk":
@@ -152,7 +164,7 @@ export function drawDiagramElement(
 
     case "force": case "gravity": case "normal-force": case "friction-force": case "tension": case "spring-force":
     case "drag-force": case "buoyancy": case "thrust": case "velocity": case "acceleration": case "momentum":
-      arrow(ctx, w, element.label); break;
+      arrow(ctx, w, element.label, element.rotation * Math.PI / 180); break;
     case "moment":
       ctx.beginPath(); ctx.arc(0, 0, Math.min(w, h) * .36, Math.PI * .25, Math.PI * 1.85); ctx.stroke(); ctx.save(); ctx.rotate(Math.PI * 1.85); ctx.translate(Math.min(w, h) * .36, 0); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-12, -6); ctx.lineTo(-12, 6); ctx.closePath(); ctx.fill(); ctx.restore(); drawText(ctx, element.label); break;
 

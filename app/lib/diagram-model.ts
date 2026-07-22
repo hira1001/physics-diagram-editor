@@ -2,7 +2,7 @@ import type { Constraint, DiagramElement, DiagramElementKind, Variable, Variable
 import { catalogEntry, createDiagramElement } from "@/app/lib/component-catalog";
 
 const connectionKinds = new Set<DiagramElementKind>(["string", "rope", "cable", "light-rod", "spring", "damper", "strut"]);
-const vectorKinds = new Set<DiagramElementKind>(["force", "gravity", "normal-force", "friction-force", "tension", "spring-force", "drag-force", "buoyancy", "thrust", "velocity", "acceleration", "momentum"]);
+const vectorKinds = new Set<DiagramElementKind>(["force", "gravity", "normal-force", "friction-force", "tension", "spring-force", "drag-force", "buoyancy", "thrust", "velocity", "acceleration", "momentum", "moment"]);
 
 export function isConnectionElement(kind: DiagramElementKind) {
   return connectionKinds.has(kind);
@@ -24,6 +24,17 @@ function boundaryDistance(element: DiagramElement, directionX: number, direction
 }
 
 export function resolveDiagramElement(element: DiagramElement, elements: readonly DiagramElement[]) {
+  if (isVectorElement(element.kind) && element.referenceTargetId) {
+    const target = elements.find((item) => item.id === element.referenceTargetId);
+    if (target) {
+      const radians = element.rotation * Math.PI / 180;
+      return {
+        ...element,
+        x: target.x + Math.cos(radians) * element.width / 2,
+        y: target.y + Math.sin(radians) * element.width / 2,
+      };
+    }
+  }
   if (!isConnectionElement(element.kind) || !element.startTargetId || !element.endTargetId) return element;
   const start = elements.find((item) => item.id === element.startTargetId);
   const end = elements.find((item) => item.id === element.endTargetId);
@@ -48,6 +59,29 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
     x: (startX + endX) / 2,
     y: (startY + endY) / 2,
   };
+}
+
+export function createReferencedElement(kind: DiagramElementKind, target: DiagramElement, id?: string) {
+  const element = createDiagramElement(kind, target.x, target.y, id);
+  element.referenceTargetId = target.id;
+  return resolveDiagramElement(element, [target, element]);
+}
+
+const bodyKinds = new Set<DiagramElementKind>(["point-mass", "block", "sphere", "disk", "wedge", "cart"]);
+
+export function contextCandidatesForElement(element: DiagramElement): DiagramElementKind[] {
+  if (bodyKinds.has(element.kind)) {
+    return [
+      "gravity", "normal-force", "friction-force", "tension", "force", "velocity", "acceleration",
+      ...(["sphere", "disk", "wedge", "cart"].includes(element.kind) ? ["moment" as const] : []),
+    ];
+  }
+  if (["string", "rope", "cable"].includes(element.kind)) return ["tension", "length-dimension"];
+  if (element.kind === "spring") return ["spring-force", "length-dimension"];
+  if (element.kind === "damper") return ["force", "length-dimension"];
+  if (["straight-track", "circular-track", "curved-track", "projectile-path"].includes(element.kind)) return ["velocity", "acceleration", "local-axis"];
+  if (["sphere", "disk", "wheel-axle", "rotation-axis"].includes(element.kind)) return ["moment", "radius-dimension"];
+  return [];
 }
 
 export function createConnection(kind: Extract<DiagramElementKind, "string" | "rope" | "cable" | "light-rod" | "spring" | "damper" | "strut">, start: DiagramElement, end: DiagramElement, id?: string) {
@@ -80,7 +114,7 @@ export function createVariableForElement(element: DiagramElement, id = globalThi
 
 export function findElementDependencies(elementId: string, elements: readonly DiagramElement[], variables: readonly Variable[], constraints: readonly Constraint[]) {
   return {
-    connections: elements.filter((item) => item.startTargetId === elementId || item.endTargetId === elementId),
+    connections: elements.filter((item) => item.startTargetId === elementId || item.endTargetId === elementId || item.referenceTargetId === elementId),
     constraints: constraints.filter((item) => item.targetIds.includes(elementId)),
     variables: variables.filter((item) => item.referenceIds.includes(elementId)),
   };
@@ -93,6 +127,7 @@ export function validateModelReferences(elements: readonly DiagramElement[], var
   for (const element of elements) {
     if (element.startTargetId && !elementIds.has(element.startTargetId)) errors.push(`${element.id}:始点参照切れ`);
     if (element.endTargetId && !elementIds.has(element.endTargetId)) errors.push(`${element.id}:終点参照切れ`);
+    if (element.referenceTargetId && !elementIds.has(element.referenceTargetId)) errors.push(`${element.id}:対象参照切れ`);
     if (element.startTargetId && element.startTargetId === element.endTargetId) errors.push(`${element.id}:自己接続`);
   }
   for (const variable of variables) {

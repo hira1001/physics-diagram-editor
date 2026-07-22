@@ -73,6 +73,7 @@ export function normalizeScene(candidate: unknown): SceneState {
       label: typeof element.label === "string" ? element.label.slice(0, 80) : definition.defaultLabel,
       locked: element.locked === true,
       rotation: clamp(finiteOr(element.rotation, 0), -3600, 3600),
+      referenceTargetId: typeof element.referenceTargetId === "string" ? element.referenceTargetId : null,
       startTargetId: typeof element.startTargetId === "string" ? element.startTargetId : null,
       visible: element.visible !== false,
       width: clamp(finiteOr(element.width, definition.defaultWidth), 8, 1000),
@@ -84,6 +85,7 @@ export function normalizeScene(candidate: unknown): SceneState {
   scene.elements = scene.elements.map((element) => ({
     ...element,
     endTargetId: element.endTargetId && elementIds.has(element.endTargetId) && element.endTargetId !== element.id ? element.endTargetId : null,
+    referenceTargetId: element.referenceTargetId && elementIds.has(element.referenceTargetId) && element.referenceTargetId !== element.id ? element.referenceTargetId : null,
     startTargetId: element.startTargetId && elementIds.has(element.startTargetId) && element.startTargetId !== element.id ? element.startTargetId : null,
   }));
   const variableTypes = new Set(["scalar", "vector", "angle", "length", "mass", "coefficient", "time"]);

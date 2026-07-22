@@ -1,5 +1,5 @@
 import type { DiagramElement } from "@/app/lib/editor-types";
-import { resolveDiagramElement } from "@/app/lib/diagram-model";
+import { isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 
 function escapeXml(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
@@ -25,7 +25,10 @@ export function diagramElementToSvg(element: DiagramElement) {
   let body = "";
 
   if (vectorKinds.has(element.kind)) {
-    body = `<line x1="${-w / 2}" y1="0" x2="${w / 2}" y2="0" ${common} marker-end="url(#arrow)"/><text x="${w / 2 - 4}" y="-12" text-anchor="end" font-size="22" font-style="italic">${label}</text>`;
+    const radians = element.rotation * Math.PI / 180;
+    const labelX = w / 2 + 16 * Math.cos(radians) - 10 * Math.sin(radians);
+    const labelY = -16 * Math.sin(radians) - 10 * Math.cos(radians);
+    body = `<line x1="${-w / 2}" y1="0" x2="${w / 2}" y2="0" ${common} marker-end="url(#arrow)"/><text x="${labelX}" y="${labelY}" text-anchor="middle" dominant-baseline="middle" font-size="22" font-style="italic" transform="rotate(${-element.rotation} ${labelX} ${labelY})">${label}</text>`;
   } else if (circularKinds.has(element.kind)) {
     const radius = Math.min(w, h) / 2;
     body = `<circle cx="0" cy="0" r="${radius}" fill="white" stroke="#18202b" stroke-width="2"/>${element.kind === "disk" || element.kind === "wheel-axle" ? `<circle cx="0" cy="0" r="${radius * .38}" ${common}/>` : ""}<text x="0" y="7" text-anchor="middle" font-size="22" font-style="italic">${label}</text>`;
@@ -36,7 +39,7 @@ export function diagramElementToSvg(element: DiagramElement) {
   } else {
     switch (element.kind) {
       case "point-mass": body = `<circle cx="0" cy="0" r="7" fill="#18202b"/><text x="18" y="-10" font-size="22" font-style="italic">${label}</text>`; break;
-      case "block": body = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="white" stroke="#18202b" stroke-width="2"/><text x="0" y="7" text-anchor="middle" font-size="22" font-style="italic">${label}</text>`; break;
+      case "block": body = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="white" stroke="#18202b" stroke-width="2"/><text x="${-w * .2}" y="7" text-anchor="middle" font-size="22" font-style="italic">${label}</text>`; break;
       case "wedge": body = `<path d="M${-w / 2},${h / 2} L${w / 2},${h / 2} L${w / 2},${-h / 2} Z" fill="white" stroke="#18202b" stroke-width="2"/><text x="${w * .18}" y="${h * .16}" text-anchor="middle" font-size="22" font-style="italic">${label}</text>`; break;
       case "cart": body = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h * .65}" fill="white" stroke="#18202b" stroke-width="2"/><circle cx="${-w * .3}" cy="${h * .3}" r="${h * .14}" fill="#18202b"/><circle cx="${w * .3}" cy="${h * .3}" r="${h * .14}" fill="#18202b"/><text x="0" y="${-h * .1}" text-anchor="middle" font-size="22" font-style="italic">${label}</text>`; break;
       case "spring": body = `<polyline points="${springPath(w)}" ${common}/><text x="0" y="-19" text-anchor="middle" font-size="20" font-style="italic">${label}</text>`; break;
@@ -65,5 +68,7 @@ export function diagramElementToSvg(element: DiagramElement) {
 }
 
 export function diagramElementsToSvg(elements: readonly DiagramElement[]) {
-  return elements.map((element) => diagramElementToSvg(resolveDiagramElement(element, elements))).join("");
+  return [...elements]
+    .sort((left, right) => Number(isVectorElement(left.kind)) - Number(isVectorElement(right.kind)))
+    .map((element) => diagramElementToSvg(resolveDiagramElement(element, elements))).join("");
 }
