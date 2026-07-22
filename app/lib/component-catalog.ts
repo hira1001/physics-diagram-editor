@@ -115,12 +115,14 @@ export function createDiagramElement(kind: DiagramElementKind, x: number, y: num
   const definition = catalogEntry(kind);
   const rotation = kind === "gravity" ? 90 : kind === "normal-force" || kind === "buoyancy" ? -90 : 0;
   return {
+    endTargetId: null,
     height: definition.defaultHeight,
     id,
     kind,
     label: definition.defaultLabel,
     locked: false,
     rotation,
+    startTargetId: null,
     visible: true,
     width: definition.defaultWidth,
     x,

@@ -326,7 +326,8 @@ test("Catalog foundation: parts are placed, moved, locked, structured, and resto
   await page.mouse.up();
   await expect(xInput).toHaveValue(beforeLockedDrag);
 
-  await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存中…", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
   await page.reload();
   await expect(inspector.locator(".inspector-title strong")).toHaveText("ダンパー");
   await expect(inspector.getByRole("button", { name: "ロック解除", exact: true })).toBeVisible();
@@ -351,4 +352,59 @@ test("Catalog discovery: command search finds aliases and places the real compon
   const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
   await expect(inspector.locator(".inspector-title strong")).toHaveText("抗力");
   await expect(inspector.getByRole("textbox", { name: "ラベル", exact: true })).toHaveValue("D");
+});
+
+test("Semantic connection foundation: a string follows two targets and protects references", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  const canvas = page.getByTestId("editor-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas has no bounding box");
+
+  await librarySearch.fill("直方体");
+  const blockTool = page.getByRole("button", { name: "物体 m", exact: true });
+  await blockTool.click();
+  await canvas.click({ position: { x: 350, y: 490 } });
+  await blockTool.click();
+  await canvas.click({ position: { x: 610, y: 490 } });
+
+  await librarySearch.fill("軽い糸");
+  await page.getByRole("button", { name: "糸 T", exact: true }).click();
+  await canvas.click({ position: { x: 480, y: 440 } });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("糸");
+  await inspector.getByLabel("接続の始点").selectOption({ index: 1 });
+  await inspector.getByLabel("接続の終点").selectOption({ index: 2 });
+  await expect(inspector.getByText("接続先の移動へ追従", { exact: true })).toBeVisible();
+  await expect(canvas).toHaveScreenshot("semantic-string-connected.png");
+
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  const structureBlocks = page.locator(".catalog-structure").getByRole("button", { name: "物体 m", exact: true });
+  await expect(structureBlocks).toHaveCount(2);
+  await structureBlocks.nth(0).click();
+  await page.mouse.move(box.x + 350, box.y + 490);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 410, box.y + 410, { steps: 8 });
+  await page.mouse.up();
+  await expect(canvas).toHaveScreenshot("semantic-string-followed.png");
+
+  await inspector.getByRole("button", { name: "ラベルを変量化", exact: true }).click();
+  await inspector.getByLabel("変量記号").fill("M");
+  await inspector.getByLabel("変量値").fill("2");
+  await inspector.getByLabel("変量単位").fill("kg");
+  await expect(inspector.getByLabel("変量記号")).toHaveValue("M");
+  await expect(page.getByText("保存中…", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+
+  await inspector.getByRole("button", { name: "削除", exact: true }).click();
+  const dependencyWarning = inspector.getByRole("alert");
+  await expect(dependencyWarning).toContainText("参照中の部品です");
+  await expect(dependencyWarning).toContainText("接続 1");
+  await dependencyWarning.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(dependencyWarning).toHaveCount(0);
+
+  await page.reload();
+  await expect(inspector.getByLabel("変量記号")).toHaveValue("M");
+  await expect(inspector.getByLabel("変量値")).toHaveValue("2");
+  await expect(inspector.getByLabel("変量単位")).toHaveValue("kg");
 });

@@ -66,18 +66,61 @@ export function normalizeScene(candidate: unknown): SceneState {
     while (seenElementIds.has(id)) id = `${id}-${index + 1}`;
     seenElementIds.add(id);
     return [{
+      endTargetId: typeof element.endTargetId === "string" ? element.endTargetId : null,
       height: clamp(finiteOr(element.height, definition.defaultHeight), 8, 1000),
       id,
       kind: element.kind,
       label: typeof element.label === "string" ? element.label.slice(0, 80) : definition.defaultLabel,
       locked: element.locked === true,
       rotation: clamp(finiteOr(element.rotation, 0), -3600, 3600),
+      startTargetId: typeof element.startTargetId === "string" ? element.startTargetId : null,
       visible: element.visible !== false,
       width: clamp(finiteOr(element.width, definition.defaultWidth), 8, 1000),
       x: clamp(finiteOr(element.x, 500), -2000, 3000),
       y: clamp(finiteOr(element.y, 325), -2000, 3000),
     }];
   }) : [];
+  const elementIds = new Set(scene.elements.map((item) => item.id));
+  scene.elements = scene.elements.map((element) => ({
+    ...element,
+    endTargetId: element.endTargetId && elementIds.has(element.endTargetId) && element.endTargetId !== element.id ? element.endTargetId : null,
+    startTargetId: element.startTargetId && elementIds.has(element.startTargetId) && element.startTargetId !== element.id ? element.startTargetId : null,
+  }));
+  const variableTypes = new Set(["scalar", "vector", "angle", "length", "mass", "coefficient", "time"]);
+  const variableIds = new Set<string>();
+  scene.variables = (Array.isArray(source.variables) ? source.variables : INITIAL_SCENE.variables).flatMap((candidateVariable, index) => {
+    if (!candidateVariable || typeof candidateVariable !== "object") return [];
+    const variable = candidateVariable as unknown as Record<string, unknown>;
+    let id = typeof variable.id === "string" && variable.id.trim() ? variable.id.slice(0, 120) : `variable-${index + 1}`;
+    while (variableIds.has(id)) id = `${id}-${index + 1}`;
+    variableIds.add(id);
+    return [{
+      id,
+      referenceIds: Array.isArray(variable.referenceIds) ? variable.referenceIds.filter((item): item is string => typeof item === "string").slice(0, 100) : [],
+      symbol: typeof variable.symbol === "string" ? variable.symbol.slice(0, 40) : "",
+      type: variableTypes.has(String(variable.type)) ? variable.type as SceneState["variables"][number]["type"] : "scalar",
+      unit: typeof variable.unit === "string" ? variable.unit.slice(0, 40) : "",
+      value: typeof variable.value === "string" ? variable.value.slice(0, 80) : "",
+    }];
+  });
+  const constraintKinds = new Set(["contact", "connection", "parallel", "perpendicular", "equal-length", "equal-angle", "same-variable", "same-tension", "axis-follow"]);
+  const constraintIds = new Set<string>();
+  scene.constraints = (Array.isArray(source.constraints) ? source.constraints : INITIAL_SCENE.constraints).flatMap((candidateConstraint, index) => {
+    if (!candidateConstraint || typeof candidateConstraint !== "object") return [];
+    const constraint = candidateConstraint as unknown as Record<string, unknown>;
+    if (!constraintKinds.has(String(constraint.kind))) return [];
+    let id = typeof constraint.id === "string" && constraint.id.trim() ? constraint.id.slice(0, 120) : `constraint-${index + 1}`;
+    while (constraintIds.has(id)) id = `${id}-${index + 1}`;
+    constraintIds.add(id);
+    return [{
+      conflict: typeof constraint.conflict === "string" ? constraint.conflict.slice(0, 200) : null,
+      enabled: constraint.enabled !== false,
+      id,
+      kind: constraint.kind as SceneState["constraints"][number]["kind"],
+      strength: constraint.strength === "preferred" ? "preferred" as const : "required" as const,
+      targetIds: Array.isArray(constraint.targetIds) ? constraint.targetIds.filter((item): item is string => typeof item === "string").slice(0, 100) : [],
+    }];
+  });
   if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:") && !scene.elements.some((item) => `element:${item.id}` === scene.selectedId)) {
     scene.selectedId = null;
   }

@@ -7,6 +7,7 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
+import { resolveDiagramElement } from "@/app/lib/diagram-model";
 
 interface EditorCanvasProps {
   activeTool: ToolId;
@@ -210,7 +211,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.clip();
 
   if (pageKind === "blank") {
-    for (const element of scene.elements) drawDiagramElement(ctx, element, geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
+    for (const element of scene.elements) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
     ctx.restore();
     return geometry;
   }
@@ -378,7 +379,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.fillText(scene.annotationText, geometry.annotationPoint.x, geometry.annotationPoint.y);
   }
 
-  for (const element of scene.elements) drawDiagramElement(ctx, element, geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
+  for (const element of scene.elements) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
 
   if (scene.selectedId && scene.selectedId.startsWith("force-")) {
     const endpoint = scene.selectedId === "force-gravity" ? geometry.forceGravityEnd : scene.selectedId === "force-normal" ? geometry.forceNormalEnd : geometry.forceFrictionEnd;
@@ -394,8 +395,13 @@ function hitTest(point: Point, geometry: Geometry, scene: SceneState): Selection
     x: (point.x - geometry.contentOrigin.x) / geometry.scale,
     y: (point.y - geometry.contentOrigin.y) / geometry.scale,
   };
+  if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
+    const selectedElement = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
+    if (selectedElement && diagramElementContainsPoint(resolveDiagramElement(selectedElement, scene.elements), contentPoint)) return scene.selectedId;
+  }
   for (let index = scene.elements.length - 1; index >= 0; index -= 1) {
-    const element = scene.elements[index];
+    const element = resolveDiagramElement(scene.elements[index], scene.elements);
+    if (`element:${element.id}` === scene.selectedId) continue;
     if (diagramElementContainsPoint(element, contentPoint)) return `element:${element.id}`;
   }
   if (scene.showAnnotation && distance(point, geometry.annotationPoint) < 46) return "text";
@@ -521,7 +527,7 @@ export function EditorCanvas({
     dragStartPointRef.current = point;
     if (hit.startsWith("element:")) {
       const element = scene.elements.find((item) => `element:${item.id}` === hit);
-      if (element && !element.locked) setDragMode("element");
+      if (element && !element.locked && !(element.startTargetId && element.endTargetId)) setDragMode("element");
     }
     else if (hit === "incline" && scene.surfaceKind === "incline" && distance(point, geometry.end) < 32) setDragMode("angle");
     else if (hit === "incline") setDragMode("diagram");
@@ -698,10 +704,13 @@ export function EditorCanvas({
     }
     if (scene.selectedId.startsWith("element:")) {
       const element = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
-      if (element) return {
-        left: clamp(geometry.contentOrigin.x + (element.x + element.width / 2) * geometry.scale + 16, 16, size.width - 250),
-        top: clamp(geometry.contentOrigin.y + (element.y - element.height / 2) * geometry.scale - 48, 16, size.height - 70),
-      };
+      if (element) {
+        const resolved = resolveDiagramElement(element, scene.elements);
+        return {
+          left: clamp(geometry.contentOrigin.x + (resolved.x + resolved.width / 2) * geometry.scale + 16, 16, size.width - 250),
+          top: clamp(geometry.contentOrigin.y + (resolved.y - resolved.height / 2) * geometry.scale - 48, 16, size.height - 70),
+        };
+      }
     }
     const anchor = scene.selectedId === "text"
         ? geometry.annotationPoint

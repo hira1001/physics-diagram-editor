@@ -16,16 +16,40 @@ export type DiagramElementKind =
   | "point-label" | "construction-line" | "text";
 
 export interface DiagramElement {
+  endTargetId: string | null;
   id: string;
   kind: DiagramElementKind;
   label: string;
   locked: boolean;
   rotation: number;
+  startTargetId: string | null;
   visible: boolean;
   width: number;
   height: number;
   x: number;
   y: number;
+}
+
+export type VariableType = "scalar" | "vector" | "angle" | "length" | "mass" | "coefficient" | "time";
+
+export interface Variable {
+  id: string;
+  referenceIds: string[];
+  symbol: string;
+  type: VariableType;
+  unit: string;
+  value: string;
+}
+
+export type ConstraintKind = "contact" | "connection" | "parallel" | "perpendicular" | "equal-length" | "equal-angle" | "same-variable" | "same-tension" | "axis-follow";
+
+export interface Constraint {
+  conflict: string | null;
+  enabled: boolean;
+  id: string;
+  kind: ConstraintKind;
+  strength: "required" | "preferred";
+  targetIds: string[];
 }
 
 export type SelectionId =
@@ -90,6 +114,8 @@ export interface SceneState {
   annotationX: number;
   annotationY: number;
   elements: DiagramElement[];
+  variables: Variable[];
+  constraints: Constraint[];
   showAngle: boolean;
   showAnnotation: boolean;
   showAxis: boolean;
@@ -149,6 +175,15 @@ export const INITIAL_SCENE: SceneState = {
   annotationX: 0.5,
   annotationY: 0.2,
   elements: [],
+  variables: [
+    { id: "variable-angle", referenceIds: ["incline"], symbol: "θ", type: "angle", unit: "°", value: "30" },
+    { id: "variable-mass", referenceIds: ["block"], symbol: "m", type: "mass", unit: "kg", value: "" },
+    { id: "variable-friction", referenceIds: ["incline"], symbol: "μ", type: "coefficient", unit: "", value: "0.3" },
+  ],
+  constraints: [
+    { id: "constraint-contact", conflict: null, enabled: true, kind: "contact", strength: "required", targetIds: ["incline", "block"] },
+    { id: "constraint-axis", conflict: null, enabled: true, kind: "axis-follow", strength: "preferred", targetIds: ["incline", "axis"] },
+  ],
   showAngle: true,
   showAnnotation: false,
   showAxis: true,

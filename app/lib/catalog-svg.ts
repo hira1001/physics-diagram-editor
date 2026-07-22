@@ -1,4 +1,5 @@
 import type { DiagramElement } from "@/app/lib/editor-types";
+import { resolveDiagramElement } from "@/app/lib/diagram-model";
 
 function escapeXml(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
@@ -64,5 +65,5 @@ export function diagramElementToSvg(element: DiagramElement) {
 }
 
 export function diagramElementsToSvg(elements: readonly DiagramElement[]) {
-  return elements.map(diagramElementToSvg).join("");
+  return elements.map((element) => diagramElementToSvg(resolveDiagramElement(element, elements))).join("");
 }
