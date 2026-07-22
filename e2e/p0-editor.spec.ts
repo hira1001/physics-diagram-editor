@@ -480,6 +480,22 @@ test("Semantic connection foundation: a string follows two targets and protects 
   await expect(inspector.getByLabel("変量記号")).toHaveValue("M");
   await expect(inspector.getByLabel("変量値")).toHaveValue("2");
   await expect(inspector.getByLabel("変量単位")).toHaveValue("kg");
+  await expect(page.getByTitle("参照中・右パネルで削除")).toBeDisabled();
+
+  await inspector.getByRole("button", { name: "削除", exact: true }).click();
+  const restoredWarning = inspector.getByRole("alert");
+  await expect(restoredWarning).toContainText("接続 1");
+  await expect(restoredWarning).toContainText("変量 1");
+  await restoredWarning.getByRole("button", { name: "依存関係ごと削除", exact: true }).click();
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "物体 m", exact: true })).toHaveCount(1);
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "糸 T", exact: true })).toHaveCount(0);
+  await expect(page.getByText("保存中…", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await page.reload();
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "物体 m", exact: true })).toHaveCount(1);
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "糸 T", exact: true })).toHaveCount(0);
 });
 
 test("PHY-005: a spring keeps two endpoints and exposes the spring constant", async ({ page }) => {

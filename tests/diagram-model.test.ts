@@ -7,6 +7,7 @@ import {
   contextCandidatesForElement,
   findElementDependencies,
   resolveDiagramElement,
+  removeElementWithDependencies,
   validateModelReferences,
 } from "@/app/lib/diagram-model";
 
@@ -50,5 +51,14 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     expect(validateModelReferences([{ ...rope, endTargetId: "missing" }], [{ ...variable, referenceIds: ["missing"] }], [{ ...constraint, targetIds: ["missing"] }])).toEqual(expect.arrayContaining([
       "rope-a-b:始点参照切れ", "rope-a-b:終点参照切れ", "mass-variable:参照切れ:missing", "connection:参照切れ:missing",
     ]));
+
+    const tension = createReferencedElement("tension", rope, "tension-rope");
+    const tensionVariable = createVariableForElement(tension, "tension-variable");
+    const removed = removeElementWithDependencies(first.id, [first, second, rope, tension], [variable, tensionVariable], [constraint]);
+    expect([...removed.removedIds]).toEqual(expect.arrayContaining([first.id, rope.id, tension.id]));
+    expect(removed.elements).toEqual([second]);
+    expect(removed.variables).toEqual([]);
+    expect(removed.constraints).toEqual([]);
+    expect(validateModelReferences(removed.elements, removed.variables, removed.constraints)).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
-import { isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
+import { findElementDependencies, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 
 interface EditorCanvasProps {
   activeTool: ToolId;
@@ -745,6 +745,12 @@ export function EditorCanvas({
   const selectedVariable = selectedElement
     ? scene.variables.find((item) => item.referenceIds.includes(selectedElement.id)) ?? null
     : null;
+  const selectedElementHasDependencies = selectedElement
+    ? (() => {
+        const dependencies = findElementDependencies(selectedElement.id, scene.elements, scene.variables, scene.constraints);
+        return Boolean(dependencies.connections.length || dependencies.variables.length || dependencies.constraints.length);
+      })()
+    : false;
 
   return (
     <main className={`canvas-workspace tool-${activeTool}`} ref={wrapperRef}>
@@ -798,7 +804,7 @@ export function EditorCanvas({
           <button type="button" title="位置をリセット" onClick={() => onSceneChange(pageKind === "freebody" ? { diagramOffsetX: 0, diagramOffsetY: 0 } : scene.selectedId === "angle" ? { angleLabelOffsetX: 0, angleLabelOffsetY: 0 } : scene.selectedId === "mass-label" || scene.selectedId === "block" ? { massLabelOffsetX: 0, massLabelOffsetY: 0 } : scene.selectedId === "text" ? { annotationX: 0.5, annotationY: 0.2 } : { diagramOffsetX: 0, diagramOffsetY: 0 })}><RotateCcw size={14} /></button>
           {scene.selectedId === "text" ? <button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button> : scene.selectedId === "block" || scene.selectedId === "mass-label" ? <button type="button" title="力を追加" onClick={() => onSceneChange({ showGravity: true, showNormal: true, ...(scene.surfaceRoughness === "rough" ? { showFriction: true } : {}) })}><MoveUpRight size={14} /></button> : null}
           {selectedElement ? <button className={selectedElement.locked ? "active" : ""} type="button" title={selectedElement.locked ? "ロック解除" : "ロック"} onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, locked: !item.locked } : item) })}><Link2 size={14} /></button> : null}
-          {selectedElement ? <button type="button" title="削除" onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button> : null}
+          {selectedElement ? <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button> : null}
         </div>
       ) : null}
 

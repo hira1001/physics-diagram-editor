@@ -139,6 +139,27 @@ export function findElementDependencies(elementId: string, elements: readonly Di
   };
 }
 
+export function removeElementWithDependencies(elementId: string, elements: readonly DiagramElement[], variables: readonly Variable[], constraints: readonly Constraint[]) {
+  const removedIds = new Set([elementId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const element of elements) {
+      if (removedIds.has(element.id)) continue;
+      if ([element.startTargetId, element.endTargetId, element.referenceTargetId].some((targetId) => targetId && removedIds.has(targetId))) {
+        removedIds.add(element.id);
+        changed = true;
+      }
+    }
+  }
+  return {
+    constraints: constraints.filter((constraint) => !constraint.targetIds.some((targetId) => removedIds.has(targetId))),
+    elements: elements.filter((element) => !removedIds.has(element.id)),
+    removedIds,
+    variables: variables.filter((variable) => !variable.referenceIds.some((referenceId) => removedIds.has(referenceId))),
+  };
+}
+
 export function validateModelReferences(elements: readonly DiagramElement[], variables: readonly Variable[], constraints: readonly Constraint[]) {
   const elementIds = new Set(elements.map((item) => item.id));
   const knownIds = new Set([...elementIds, "incline", "block", "axis", "angle"]);

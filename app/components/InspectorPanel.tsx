@@ -16,7 +16,7 @@ import { VariableInput } from "@/app/components/VariableInput";
 import type { DiagramElement, PageKind, SceneState } from "@/app/lib/editor-types";
 import { hasSurfaceConflict, surfaceDisplayName } from "@/app/lib/physics-rules";
 import { catalogEntry } from "@/app/lib/component-catalog";
-import { contextCandidatesForElement, createReferencedElement, createVariableForElement, findElementDependencies, isConnectionElement, isVectorElement } from "@/app/lib/diagram-model";
+import { contextCandidatesForElement, createReferencedElement, createVariableForElement, findElementDependencies, isConnectionElement, isVectorElement, removeElementWithDependencies } from "@/app/lib/diagram-model";
 
 interface InspectorPanelProps {
   scene: SceneState;
@@ -146,11 +146,12 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
   };
   const removeSelectedElement = () => {
     if (!selectedElement) return;
+    const next = removeElementWithDependencies(selectedElement.id, scene.elements, scene.variables, scene.constraints);
     onSceneChange({
-      constraints: scene.constraints.filter((constraint) => !constraint.targetIds.includes(selectedElement.id)),
-      elements: scene.elements.filter((item) => item.id !== selectedElement.id && item.startTargetId !== selectedElement.id && item.endTargetId !== selectedElement.id && item.referenceTargetId !== selectedElement.id),
+      constraints: next.constraints,
+      elements: next.elements,
       selectedId: null,
-      variables: scene.variables.filter((variable) => !variable.referenceIds.includes(selectedElement.id)),
+      variables: next.variables,
     });
     setDeletePending(false);
   };
