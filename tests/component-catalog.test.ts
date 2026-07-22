@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   PHYSICS_COMPONENT_CATALOG,
   catalogEntryForTool,
+  catalogSurfaceKind,
+  catalogSurfacePreset,
   componentToolId,
   createDiagramElement,
   searchComponentCatalog,
@@ -12,11 +14,21 @@ import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catal
 describe("PHY-075 standard component catalog", () => {
   it("contains unique physical component kinds across every required category", () => {
     const kinds = PHYSICS_COMPONENT_CATALOG.map((item) => item.kind);
-    expect(PHYSICS_COMPONENT_CATALOG.length).toBeGreaterThanOrEqual(50);
+    expect(PHYSICS_COMPONENT_CATALOG.length).toBeGreaterThanOrEqual(60);
     expect(new Set(kinds).size).toBe(kinds.length);
     expect(new Set(PHYSICS_COMPONENT_CATALOG.map((item) => item.category))).toEqual(new Set([
       "物体", "接触面", "支持", "接続", "機械要素", "軌道", "流体", "ベクトル", "注釈",
     ]));
+  });
+
+  it("contains independently placeable smooth and rough floor, wall, and incline parts", () => {
+    for (const direction of ["floor", "wall", "incline"] as const) {
+      for (const roughness of ["smooth", "rough"] as const) {
+        const kind = catalogSurfaceKind(direction, roughness);
+        expect(PHYSICS_COMPONENT_CATALOG.map((item) => item.kind)).toContain(kind);
+        expect(catalogSurfacePreset(kind)).toEqual({ direction, roughness });
+      }
+    }
   });
 
   it.each([

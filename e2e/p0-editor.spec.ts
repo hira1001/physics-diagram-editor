@@ -666,6 +666,54 @@ test("Catalog discovery: command search finds aliases and places the real compon
   await expect(inspector.getByRole("textbox", { name: "ラベル", exact: true })).toHaveValue("D");
 });
 
+test("PHY-002/047: smooth and rough floor, wall, and incline are independent editable physics parts", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  const canvas = page.getByTestId("editor-canvas");
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+
+  await librarySearch.fill("滑らかな壁");
+  await page.locator(".catalog-row").filter({ hasText: "滑らかな壁" }).click();
+  await canvas.click({ position: { x: 170, y: 180 } });
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("滑らかな壁");
+  await expect(inspector.getByRole("button", { name: "N", exact: true })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "f", exact: true })).toHaveCount(0);
+  await expect(inspector.getByText("法線候補・摩擦なし", { exact: true })).toBeVisible();
+
+  await inspector.getByRole("combobox", { name: "部品面の粗さ", exact: true }).selectOption("rough");
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("粗い壁");
+  await expect(inspector.getByRole("button", { name: "f", exact: true })).toBeVisible();
+  await expect(inspector.getByText("法線・摩擦・μ候補", { exact: true })).toBeVisible();
+  await inspector.getByRole("combobox", { name: "部品面の向き", exact: true }).selectOption("incline");
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("粗い斜面");
+  await expect(inspector.getByRole("spinbutton", { name: "回転 °", exact: true })).toHaveValue("-30");
+  await inspector.getByRole("spinbutton", { name: "幅", exact: true }).fill("235");
+  await inspector.getByRole("spinbutton", { name: "幅", exact: true }).press("Enter");
+  await inspector.getByRole("spinbutton", { name: "回転 °", exact: true }).fill("-24");
+  await inspector.getByRole("spinbutton", { name: "回転 °", exact: true }).press("Enter");
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await page.reload();
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("粗い斜面");
+  await expect(inspector.getByRole("spinbutton", { name: "幅", exact: true })).toHaveValue("235");
+  await expect(inspector.getByRole("spinbutton", { name: "回転 °", exact: true })).toHaveValue("-24");
+
+  await page.getByRole("button", { name: "図を追加", exact: true }).click();
+  const surfaces = [
+    { name: "滑らかな床", position: { x: 180, y: 130 } },
+    { name: "粗い床", position: { x: 470, y: 130 } },
+    { name: "滑らかな壁", position: { x: 145, y: 330 } },
+    { name: "粗い壁", position: { x: 300, y: 330 } },
+    { name: "滑らかな斜面", position: { x: 485, y: 290 } },
+    { name: "粗い斜面", position: { x: 485, y: 410 } },
+  ];
+  for (const { name, position } of surfaces) {
+    await librarySearch.fill(name);
+    await page.locator(".catalog-row").filter({ hasText: name }).click();
+    await canvas.click({ position });
+  }
+  await canvas.click({ position: { x: 650, y: 540 } });
+  await expect(canvas).toHaveScreenshot("catalog-contact-surfaces.png", { maxDiffPixels: 0 });
+});
+
 test("PHY-075: every standard component name and alias is discoverable and every kind is placeable", async ({ page }) => {
   test.setTimeout(120_000);
   const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });

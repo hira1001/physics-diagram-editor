@@ -15,7 +15,7 @@ import { NumericInput } from "@/app/components/NumericInput";
 import { VariableInput } from "@/app/components/VariableInput";
 import type { DiagramElement, PageKind, SceneState } from "@/app/lib/editor-types";
 import { hasSurfaceConflict, surfaceDisplayName } from "@/app/lib/physics-rules";
-import { catalogEntry } from "@/app/lib/component-catalog";
+import { catalogEntry, catalogSurfaceDefaultRotation, catalogSurfaceKind, catalogSurfacePreset } from "@/app/lib/component-catalog";
 import { contextCandidatesForElement, createReferencedElement, createVariableForElement, findElementDependencies, isConnectionElement, isVectorElement, removeElementWithDependencies } from "@/app/lib/diagram-model";
 
 interface InspectorPanelProps {
@@ -125,6 +125,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
   const surfaceConflict = hasSurfaceConflict(scene);
   const constraintConflicts = scene.constraints.filter((constraint) => constraint.enabled && constraint.conflict);
   const selectedVariables = selectedElement ? scene.variables.filter((variable) => variable.referenceIds.includes(selectedElement.id)) : [];
+  const selectedCatalogSurface = selectedElement ? catalogSurfacePreset(selectedElement.kind) : null;
   const contextCandidates = selectedElement ? contextCandidatesForElement(selectedElement) : [];
   const selectedDependencies = selectedElement ? findElementDependencies(selectedElement.id, scene.elements, scene.variables, scene.constraints) : null;
   const hasDependencies = Boolean(selectedDependencies && (selectedDependencies.connections.length || selectedDependencies.constraints.length || selectedDependencies.variables.length));
@@ -180,6 +181,14 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
         {openSections.dimensions ? <div className="inspector-content">
           {selectedElement ? <>
             <label className="property-row"><span>ラベル</span><ElementLabelInput element={selectedElement} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            {selectedCatalogSurface ? <>
+              <label className="property-row"><span>向き</span><select aria-label="部品面の向き" value={selectedCatalogSurface.direction} onChange={(event) => {
+                const direction = event.target.value as typeof selectedCatalogSurface.direction;
+                updateSelectedElement({ kind: catalogSurfaceKind(direction, selectedCatalogSurface.roughness), rotation: catalogSurfaceDefaultRotation(direction) });
+              }}><option value="floor">床</option><option value="incline">斜面</option><option value="wall">壁</option></select></label>
+              <label className="property-row"><span>表面</span><select aria-label="部品面の粗さ" value={selectedCatalogSurface.roughness} onChange={(event) => updateSelectedElement({ kind: catalogSurfaceKind(selectedCatalogSurface.direction, event.target.value as typeof selectedCatalogSurface.roughness) })}><option value="smooth">滑らか</option><option value="rough">粗い</option></select></label>
+              <div className="property-note"><Link2 size={13} />{selectedCatalogSurface.roughness === "rough" ? "法線・摩擦・μ候補" : "法線候補・摩擦なし"}</div>
+            </> : null}
             {isConnectionElement(selectedElement.kind) ? <>
               <label className="property-row"><span>始点</span><select aria-label="接続の始点" value={selectedElement.startTargetId ?? ""} onChange={(event) => updateConnectionTarget("startTargetId", event.target.value)}><option value="">未接続</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>
               <label className="property-row"><span>終点</span><select aria-label="接続の終点" value={selectedElement.endTargetId ?? ""} onChange={(event) => updateConnectionTarget("endTargetId", event.target.value)}><option value="">未接続</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>

@@ -4,6 +4,7 @@ export type SurfaceRoughness = "rough" | "smooth";
 
 export type DiagramElementKind =
   | "point-mass" | "block" | "sphere" | "disk" | "wedge" | "cart"
+  | "smooth-floor" | "rough-floor" | "smooth-wall" | "rough-wall" | "smooth-incline" | "rough-incline"
   | "ceiling" | "step" | "corner" | "curved-surface"
   | "fixed-end" | "pin-support" | "hinge" | "roller-support" | "simple-support" | "strut"
   | "string" | "rope" | "cable" | "light-rod" | "spring" | "damper"

@@ -26,6 +26,14 @@ function point(element: DiagramElement, along: number) {
   };
 }
 
+function localPoint(element: DiagramElement, along: number, normal: number) {
+  const radians = element.rotation * Math.PI / 180;
+  return {
+    x: ORIGIN_X + (element.x + Math.cos(radians) * along - Math.sin(radians) * normal) * INCHES_PER_UNIT,
+    y: ORIGIN_Y + (element.y + Math.sin(radians) * along + Math.cos(radians) * normal) * INCHES_PER_UNIT,
+  };
+}
+
 export function addCatalogElementsToPptx(slide: PptxSlideLike, shapeType: PptxShapeTypes, elements: readonly DiagramElement[]) {
   const ordered = [...elements]
     .sort((left, right) => Number(isVectorElement(left.kind)) - Number(isVectorElement(right.kind)))
@@ -76,6 +84,13 @@ export function addCatalogElementsToPptx(slide: PptxSlideLike, shapeType: PptxSh
       const start = point(element, -element.width / 2);
       const end = point(element, element.width / 2);
       slide.addShape(shapeType.line, { objectName, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, line: { ...line, dashType: element.kind === "construction-line" ? "dash" : undefined } });
+      if (["rough-floor", "rough-wall", "rough-incline"].includes(element.kind)) {
+        for (let along = -element.width / 2 + 12; along < element.width / 2; along += 17) {
+          const hatchStart = localPoint(element, along, 0);
+          const hatchEnd = localPoint(element, along - 8, 11);
+          slide.addShape(shapeType.line, { objectName: `${objectName}:roughness`, x: hatchStart.x, y: hatchStart.y, w: hatchEnd.x - hatchStart.x, h: hatchEnd.y - hatchStart.y, line });
+        }
+      }
     } else {
       slide.addShape(circular ? shapeType.ellipse : shapeType.rect, {
         objectName,

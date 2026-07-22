@@ -1,5 +1,5 @@
 import type { Constraint, DiagramElement, DiagramElementKind, Variable, VariableType } from "@/app/lib/editor-types";
-import { catalogEntry, createDiagramElement } from "@/app/lib/component-catalog";
+import { catalogEntry, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 
 const connectionKinds = new Set<DiagramElementKind>(["string", "rope", "cable", "light-rod", "spring", "damper", "strut"]);
 const vectorKinds = new Set<DiagramElementKind>(["force", "gravity", "normal-force", "friction-force", "tension", "spring-force", "drag-force", "buoyancy", "thrust", "velocity", "acceleration", "momentum", "moment"]);
@@ -70,6 +70,10 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
 export function createReferencedElement(kind: DiagramElementKind, target: DiagramElement, id?: string) {
   const element = createDiagramElement(kind, target.x, target.y, id);
   element.referenceTargetId = target.id;
+  const surface = catalogSurfacePreset(target.kind);
+  if (surface && kind === "normal-force") element.rotation = target.rotation - 90;
+  if (surface && kind === "friction-force") element.rotation = target.rotation;
+  if (surface && (kind === "angle-arc" || kind === "local-axis")) element.rotation = target.rotation;
   return resolveDiagramElement(element, [target, element]);
 }
 
@@ -80,6 +84,14 @@ export function contextCandidatesForElement(element: DiagramElement): DiagramEle
     return [
       "gravity", "normal-force", "friction-force", "tension", "force", "velocity", "acceleration",
       ...(["sphere", "disk", "wedge", "cart"].includes(element.kind) ? ["moment" as const] : []),
+    ];
+  }
+  const surface = catalogSurfacePreset(element.kind);
+  if (surface) {
+    return [
+      "normal-force",
+      ...(surface.roughness === "rough" ? ["friction-force" as const] : []),
+      ...(surface.direction === "incline" ? ["angle-arc" as const, "local-axis" as const] : []),
     ];
   }
   if (["string", "rope", "cable"].includes(element.kind)) return ["tension", "length-dimension"];

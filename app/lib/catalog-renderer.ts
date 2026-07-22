@@ -61,6 +61,14 @@ function drawText(ctx: CanvasRenderingContext2D, label: string, x = 0, y = 7) {
   ctx.fillText(label, x, y);
 }
 
+function drawCatalogSurface(ctx: CanvasRenderingContext2D, width: number, label: string, rough: boolean) {
+  line(ctx, -width / 2, 0, width / 2, 0);
+  if (rough) {
+    for (let x = -width / 2 + 12; x < width / 2; x += 17) line(ctx, x, 0, x - 8, 11);
+  }
+  drawText(ctx, label, 0, rough ? 24 : 18);
+}
+
 export function drawDiagramElement(
   ctx: CanvasRenderingContext2D,
   element: DiagramElement,
@@ -94,6 +102,11 @@ export function drawDiagramElement(
       ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(-w / 2, h / 2); ctx.lineTo(w / 2, h / 2); ctx.lineTo(w / 2, -h / 2); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#18202b"; drawText(ctx, element.label, w * .18, h * .16); break;
     case "cart":
       ctx.fillStyle = "#fff"; ctx.fillRect(-w / 2, -h / 2, w, h * .65); ctx.strokeRect(-w / 2, -h / 2, w, h * .65); ctx.beginPath(); ctx.arc(-w * .3, h * .3, h * .14, 0, Math.PI * 2); ctx.arc(w * .3, h * .3, h * .14, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#18202b"; drawText(ctx, element.label, 0, -h * .14); break;
+
+    case "smooth-floor": case "smooth-wall": case "smooth-incline":
+      drawCatalogSurface(ctx, w, element.label, false); break;
+    case "rough-floor": case "rough-wall": case "rough-incline":
+      drawCatalogSurface(ctx, w, element.label, true); break;
 
     case "ceiling":
       line(ctx, -w / 2, 0, w / 2, 0); for (let x = -w / 2; x < w / 2; x += 18) line(ctx, x, 0, x + 10, -12); break;

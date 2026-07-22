@@ -16,6 +16,16 @@ function springPath(width: number) {
   return points.join(" ");
 }
 
+function surfaceBody(width: number, lineWidth: number, fontSize: number, label: string, rough: boolean) {
+  const hatches = rough
+    ? Array.from({ length: Math.max(1, Math.floor((width - 18) / 17)) }, (_, index) => {
+        const x = -width / 2 + 12 + index * 17;
+        return `M${x},0 l-8,11`;
+      }).join(" ")
+    : "";
+  return `<path d="M${-width / 2},0 L${width / 2},0 ${hatches}" fill="none" stroke="#18202b" stroke-width="${lineWidth}"/><text x="0" y="${rough ? 24 : 18}" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`;
+}
+
 export function diagramElementToSvg(element: DiagramElement) {
   if (!element.visible) return "";
   const w = element.width;
@@ -44,6 +54,8 @@ export function diagramElementToSvg(element: DiagramElement) {
       case "block": body = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><text x="${-w * .2}" y="7" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "wedge": body = `<path d="M${-w / 2},${h / 2} L${w / 2},${h / 2} L${w / 2},${-h / 2} Z" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><text x="${w * .18}" y="${h * .16}" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "cart": body = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h * .65}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><circle cx="${-w * .3}" cy="${h * .3}" r="${h * .14}" fill="#18202b"/><circle cx="${w * .3}" cy="${h * .3}" r="${h * .14}" fill="#18202b"/><text x="0" y="${-h * .1}" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
+      case "smooth-floor": case "smooth-wall": case "smooth-incline": body = surfaceBody(w, lineWidth, fontSize, label, false); break;
+      case "rough-floor": case "rough-wall": case "rough-incline": body = surfaceBody(w, lineWidth, fontSize, label, true); break;
       case "spring": body = `<polyline points="${springPath(w)}" ${common}/><text x="0" y="-19" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "damper": body = `<line x1="${-w / 2}" y1="0" x2="${-w * .15}" y2="0" ${common}/><rect x="${-w * .15}" y="${-h * .28}" width="${w * .3}" height="${h * .56}" ${common}/><line x1="0" y1="${-h * .45}" x2="0" y2="${h * .45}" ${common}/><line x1="${w * .15}" y1="0" x2="${w / 2}" y2="0" ${common}/><text x="0" y="${-h * .6}" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "moment": body = `<path d="M${w * .3},${-h * .15} A${w * .35},${h * .35} 0 1 1 ${-w * .15},${-h * .3}" ${common} marker-end="url(#arrow)"/><text x="0" y="7" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;

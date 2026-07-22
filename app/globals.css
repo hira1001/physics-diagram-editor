@@ -378,6 +378,16 @@ kbd {
   letter-spacing: 0.03em;
 }
 
+.section-heading .section-count {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--text-faint);
+  background: var(--bg-hover);
+  font-size: 9px;
+  font-weight: 600;
+}
+
 .template-row {
   display: grid;
   width: 100%;

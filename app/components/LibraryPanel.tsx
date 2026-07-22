@@ -47,12 +47,6 @@ const libraryItems: Array<{
   meta: string;
   icon: typeof Box;
 }> = [
-  { id: "surface-rough-incline", name: "粗い斜面", meta: "P", icon: Slash },
-  { id: "surface-smooth-incline", name: "滑らかな斜面", meta: "", icon: Slash },
-  { id: "surface-rough-floor", name: "粗い床", meta: "", icon: Slash },
-  { id: "surface-smooth-floor", name: "滑らかな床", meta: "", icon: Slash },
-  { id: "surface-rough-wall", name: "粗い壁", meta: "", icon: Slash },
-  { id: "surface-smooth-wall", name: "滑らかな壁", meta: "", icon: Slash },
   { id: "block", name: "物体", meta: "B", icon: Box },
   { id: "force", name: "力ベクトル", meta: "F", icon: MoveUpRight },
   { id: "angle", name: "角度・寸法", meta: "A", icon: Gauge },
@@ -142,7 +136,7 @@ export function LibraryPanel({
             </button>
           </section>
           <section className="library-section grow">
-            <div className="section-heading"><ChevronDown size={14} />部品</div>
+            <div className="section-heading"><ChevronDown size={14} /><span>部品</span><b className="section-count">{PHYSICS_COMPONENT_CATALOG.length + libraryItems.length}</b></div>
             <div className="component-list">
               {filteredItems.map((item) => {
                 const Icon = item.icon;

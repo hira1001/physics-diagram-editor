@@ -13,6 +13,24 @@ export interface ComponentCatalogEntry {
   physics: string[];
 }
 
+export type CatalogSurfaceKind = Extract<DiagramElementKind,
+  "smooth-floor" | "rough-floor" | "smooth-wall" | "rough-wall" | "smooth-incline" | "rough-incline"
+>;
+
+export interface CatalogSurfacePreset {
+  direction: "floor" | "incline" | "wall";
+  roughness: "rough" | "smooth";
+}
+
+const catalogSurfacePresets: Record<CatalogSurfaceKind, CatalogSurfacePreset> = {
+  "smooth-floor": { direction: "floor", roughness: "smooth" },
+  "rough-floor": { direction: "floor", roughness: "rough" },
+  "smooth-wall": { direction: "wall", roughness: "smooth" },
+  "rough-wall": { direction: "wall", roughness: "rough" },
+  "smooth-incline": { direction: "incline", roughness: "smooth" },
+  "rough-incline": { direction: "incline", roughness: "rough" },
+};
+
 const entry = (
   kind: DiagramElementKind,
   name: string,
@@ -32,6 +50,12 @@ export const PHYSICS_COMPONENT_CATALOG: readonly ComponentCatalogEntry[] = [
   entry("wedge", "くさび", "物体", 130, 88, "M", ["楔"], ["質量", "接触面"]),
   entry("cart", "台車", "物体", 140, 78, "M", ["車", "カート"], ["質量", "車輪接触", "速度"]),
 
+  entry("smooth-floor", "滑らかな床", "接触面", 190, 24, "", ["摩擦なし床", "なめらかな床"], ["上向き法線", "摩擦なし", "接触"]),
+  entry("rough-floor", "粗い床", "接触面", 190, 24, "μ", ["摩擦あり床", "あらい床"], ["上向き法線", "摩擦", "摩擦係数", "接触"]),
+  entry("smooth-wall", "滑らかな壁", "接触面", 190, 24, "", ["摩擦なし壁", "なめらかな壁"], ["水平法線", "摩擦なし", "接触"]),
+  entry("rough-wall", "粗い壁", "接触面", 190, 24, "μ", ["摩擦あり壁", "あらい壁"], ["水平法線", "摩擦", "摩擦係数", "接触"]),
+  entry("smooth-incline", "滑らかな斜面", "接触面", 190, 24, "θ", ["摩擦なし斜面", "なめらかな斜面"], ["面の法線", "摩擦なし", "接触", "傾斜角"]),
+  entry("rough-incline", "粗い斜面", "接触面", 190, 24, "μ", ["摩擦あり斜面", "あらい斜面"], ["面の法線", "摩擦", "摩擦係数", "接触", "傾斜角"]),
   entry("ceiling", "天井", "接触面", 180, 24, "", ["上面"], ["下向き法線", "摩擦"]),
   entry("step", "段差", "接触面", 160, 100, "", ["階段"], ["複数接触点", "法線"]),
   entry("corner", "角", "接触面", 120, 120, "", ["隅", "コーナー"], ["二面接触", "複数反力"]),
@@ -111,9 +135,25 @@ export function componentToolId(kind: DiagramElementKind): ToolId {
   return `part:${kind}`;
 }
 
+export function catalogSurfacePreset(kind: DiagramElementKind): CatalogSurfacePreset | null {
+  return kind in catalogSurfacePresets ? catalogSurfacePresets[kind as CatalogSurfaceKind] : null;
+}
+
+export function catalogSurfaceKind(direction: CatalogSurfacePreset["direction"], roughness: CatalogSurfacePreset["roughness"]): CatalogSurfaceKind {
+  return `${roughness}-${direction}` as CatalogSurfaceKind;
+}
+
+export function catalogSurfaceDefaultRotation(direction: CatalogSurfacePreset["direction"]) {
+  return direction === "wall" ? -90 : direction === "incline" ? -30 : 0;
+}
+
 export function createDiagramElement(kind: DiagramElementKind, x: number, y: number, id = globalThis.crypto?.randomUUID?.() ?? `part-${Date.now()}-${Math.random().toString(36).slice(2)}`): DiagramElement {
   const definition = catalogEntry(kind);
-  const rotation = kind === "gravity" ? 90 : kind === "normal-force" || kind === "buoyancy" ? -90 : 0;
+  const surface = catalogSurfacePreset(kind);
+  const rotation = kind === "gravity" ? 90
+    : kind === "normal-force" || kind === "buoyancy" ? -90
+      : surface ? catalogSurfaceDefaultRotation(surface.direction)
+        : 0;
   return {
     endTargetId: null,
     fontSize: kind === "text" ? 18 : 22,

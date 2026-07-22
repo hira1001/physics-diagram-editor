@@ -40,6 +40,18 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     expect(resolveDiagramElement(gravity, [{ ...body, x: 240, y: 80 }, gravity])).toMatchObject({ x: 240, y: 145 });
   });
 
+  it("offers friction only for rough catalog surfaces and aligns force candidates to the surface", () => {
+    const smoothWall = createDiagramElement("smooth-wall", 100, 100, "smooth-wall-a");
+    const roughWall = createDiagramElement("rough-wall", 100, 100, "rough-wall-a");
+    const roughIncline = createDiagramElement("rough-incline", 200, 200, "rough-incline-a");
+
+    expect(contextCandidatesForElement(smoothWall)).toEqual(["normal-force"]);
+    expect(contextCandidatesForElement(roughWall)).toEqual(["normal-force", "friction-force"]);
+    expect(contextCandidatesForElement(roughIncline)).toEqual(["normal-force", "friction-force", "angle-arc", "local-axis"]);
+    expect(createReferencedElement("normal-force", smoothWall, "normal-wall")).toMatchObject({ referenceTargetId: smoothWall.id, rotation: -180 });
+    expect(createReferencedElement("friction-force", roughIncline, "friction-incline")).toMatchObject({ referenceTargetId: roughIncline.id, rotation: -30 });
+  });
+
   it("decomposes a vector into referenced x/y components with one shared variable", () => {
     const body = createDiagramElement("block", 100, 100, "body-components");
     const force = createReferencedElement("force", body, "force-components");
