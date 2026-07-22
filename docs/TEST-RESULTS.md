@@ -24,6 +24,7 @@
 | `PHY-029` | Unit、Chrome、Firefox、WebKit | 合格 | 汎用物体から鉛直下向きの`mg`を追加し、物体移動への追従、前景描画、正立ラベル、変量・作用対象の保存復元を確認 |
 | `PHY-004`, `PHY-005`, `PHY-022` | Unit、Chrome、Firefox、WebKit | 合格 | 糸とばねを2物体の輪郭へ接続し、一方の移動後も端点・長さ・表現・必須接続制約を保持。全12枚のVisual Regression画像 |
 | `PHY-018` | Unit、Chrome、Firefox、WebKit | 合格 | 記号・値・単位・型・参照IDを持つ変量モデル。質量、ばね定数`k [N/m]`、減衰係数`c [N·s/m]`、張力`T [N]`を検証 |
+| `PHY-019`, `PHY-020` | Chrome、Firefox、WebKit | 合格 | 図上HUDと右インスペクタ間で記号・値を即時同期。Esc取消、Enter確定、1回Undo/Redoを同一入力実装で検証 |
 | `INS-013`, `INS-014` | Chrome、Firefox、WebKit | 合格 | 滑らかな面に残る摩擦力を対象と同色で警告し、非破壊の解消候補を提示 |
 | `TPL-019`, `TPL-020` | Chrome、Firefox、WebKit | 合格 | 粗い壁、滑らかな壁のテンプレートを実部品として適用・再編集 |
 
@@ -32,7 +33,7 @@
 | コマンド群 | 結果 |
 |---|---|
 | Unit | 5ファイル、41テスト合格 |
-| E2E | 3ブラウザ、69テスト合格（スナップショット更新後の再実行も同数合格） |
+| E2E | 3ブラウザ、72テスト合格（スナップショット更新後の再実行も同数合格） |
 | TypeScript | 合格 |
 | ESLint | 合格 |
 | Production build / server render | 合格 |

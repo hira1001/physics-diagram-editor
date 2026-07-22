@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
 import { NumericInput } from "@/app/components/NumericInput";
+import { VariableInput } from "@/app/components/VariableInput";
 import type { DiagramElement, PageKind, SceneState } from "@/app/lib/editor-types";
 import { hasSurfaceConflict, surfaceDisplayName } from "@/app/lib/physics-rules";
 import { catalogEntry } from "@/app/lib/component-catalog";
@@ -262,9 +263,9 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
         {openSections.variables ? <div className="token-list">
           {selectedElement ? <>
             {selectedVariables.map((variable) => <div className="custom-variable-row" key={variable.id}>
-              <input aria-label="変量記号" value={variable.symbol} onChange={(event) => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, label: event.target.value } : item), variables: scene.variables.map((item) => item.id === variable.id ? { ...item, symbol: event.target.value } : item) })} />
-              <input aria-label="変量値" value={variable.value} onChange={(event) => onSceneChange({ variables: scene.variables.map((item) => item.id === variable.id ? { ...item, value: event.target.value } : item) })} placeholder="値" />
-              <input aria-label="変量単位" value={variable.unit} onChange={(event) => onSceneChange({ variables: scene.variables.map((item) => item.id === variable.id ? { ...item, unit: event.target.value } : item) })} placeholder="単位" />
+              <VariableInput aria-label="変量記号" property="symbol" variable={variable} syncElementId={selectedElement.id} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} />
+              <VariableInput aria-label="変量値" property="value" variable={variable} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} placeholder="値" />
+              <VariableInput aria-label="変量単位" property="unit" variable={variable} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} placeholder="単位" />
               <button type="button" aria-label="変量を削除" onClick={() => onSceneChange({ variables: scene.variables.filter((item) => item.id !== variable.id) })}><Trash2 size={13} /></button>
             </div>)}
             {selectedVariables.map((variable) => <div className="property-note" key={`${variable.id}-meta`}><Link2 size={13} />型 {variable.type} · 参照 {variable.referenceIds.length}</div>)}

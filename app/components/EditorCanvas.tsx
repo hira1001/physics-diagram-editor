@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlipHorizontal2, Link2, MoveUpRight, RotateCcw, Trash2 } from "lucide-react";
 import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
+import { VariableInput } from "@/app/components/VariableInput";
 import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor-types";
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, createDiagramElement } from "@/app/lib/component-catalog";
@@ -741,6 +742,9 @@ export function EditorCanvas({
   const selectedElement = typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")
     ? scene.elements.find((item) => `element:${item.id}` === scene.selectedId) ?? null
     : null;
+  const selectedVariable = selectedElement
+    ? scene.variables.find((item) => item.referenceIds.includes(selectedElement.id)) ?? null
+    : null;
 
   return (
     <main className={`canvas-workspace tool-${activeTool}`} ref={wrapperRef}>
@@ -783,6 +787,8 @@ export function EditorCanvas({
             <label><span>文字</span><SceneTextInput property="annotationText" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
           ) : scene.selectedId?.startsWith("force-") ? (
             <label><span>倍率</span><SceneNumericInput min="50" max="180" property="forceScale" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></label>
+          ) : selectedElement && selectedVariable ? (
+            <label className="hud-variable-editor"><small>{catalogEntry(selectedElement.kind).name}</small><VariableInput aria-label="HUD変量記号" property="symbol" variable={selectedVariable} syncElementId={selectedElement.id} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><VariableInput aria-label="HUD変量値" property="value" variable={selectedVariable} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} placeholder="値" /></label>
           ) : selectedElement ? (
             <span className="hud-name">{catalogEntry(selectedElement.kind).name}{selectedElement.label ? ` · ${selectedElement.label}` : ""}</span>
           ) : <span className="hud-name">{scene.selectedId === "axis" ? "座標軸" : scene.selectedId === "spring" ? "ばね" : "滑車"}</span>}

@@ -388,6 +388,45 @@ test("PHY-028/029: body suggestions create a foreground force that follows the b
   await expect(page.locator(".catalog-structure").getByRole("button", { name: "重力 mg", exact: true })).toBeVisible();
 });
 
+test("PHY-019/020: variable edits sync between HUD and inspector as atomic history", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  await librarySearch.fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  await page.getByTestId("editor-canvas").click({ position: { x: 520, y: 490 } });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await inspector.getByRole("button", { name: "ラベルを変量化", exact: true }).click();
+  const inspectorSymbol = inspector.getByLabel("変量記号");
+  const inspectorValue = inspector.getByLabel("変量値");
+  const hudSymbol = page.getByLabel("HUD変量記号");
+  const hudValue = page.getByLabel("HUD変量値");
+  const undo = page.getByRole("button", { name: "元に戻す", exact: true });
+  const redo = page.getByRole("button", { name: "やり直す", exact: true });
+
+  await inspectorSymbol.fill("cancelled");
+  await expect(hudSymbol).toHaveValue("cancelled");
+  await inspectorSymbol.press("Escape");
+  await expect(inspectorSymbol).toHaveValue("m");
+  await expect(hudSymbol).toHaveValue("m");
+
+  await inspectorSymbol.fill("M");
+  await inspectorSymbol.press("Enter");
+  await expect(hudSymbol).toHaveValue("M");
+  await undo.click();
+  await expect(inspectorSymbol).toHaveValue("m");
+  await redo.click();
+  await expect(inspectorSymbol).toHaveValue("M");
+
+  await hudValue.fill("4");
+  await expect(inspectorValue).toHaveValue("4");
+  await hudValue.press("Enter");
+  await undo.click();
+  await expect(inspectorValue).toHaveValue("");
+  await redo.click();
+  await expect(inspectorValue).toHaveValue("4");
+  await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("variable-hud-inspector-sync.png", { maxDiffPixels: 0 });
+});
+
 test("Semantic connection foundation: a string follows two targets and protects references", async ({ page }) => {
   const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
   const canvas = page.getByTestId("editor-canvas");
