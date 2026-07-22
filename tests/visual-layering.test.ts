@@ -94,4 +94,14 @@ describe("VIS-001 force-vector foreground regression", () => {
     expect(svg).toContain("A&apos;B &amp; C");
     expect(svg).not.toContain('<m & "x">');
   });
+
+  it("exports walls with an upright object and visible roughness marks", () => {
+    const svg = sceneToSvg({ ...INITIAL_SCENE, surfaceKind: "wall", surfaceRoughness: "rough" });
+
+    expect(svg).toContain('data-surface-kind="wall"');
+    expect(svg).toContain('data-surface-roughness="rough"');
+    expect(svg).toContain('data-layer="surface-texture"');
+    expect(svg).toMatch(/data-layer="object" transform="translate\([^)]*\) rotate\(0\)"/);
+    expect(svg).not.toContain(">θ</text>");
+  });
 });

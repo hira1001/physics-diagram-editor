@@ -35,6 +35,7 @@ import {
 } from "@/app/lib/editor-types";
 import { sceneToSvg } from "@/app/lib/scene-export";
 import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/app/lib/workspace-storage";
+import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
 
 type LibraryTab = "add" | "structure";
 type Flyout = "export" | "menu" | null;
@@ -177,9 +178,18 @@ export function PhysicsEditor() {
       return;
     }
     recordWorkspace(workspace);
+    const templateSurface: SurfacePreset = template === "horizontal"
+      ? { kind: "floor", roughness: "rough" }
+      : template === "rough-wall"
+        ? { kind: "wall", roughness: "rough" }
+        : template === "smooth-wall"
+          ? { kind: "wall", roughness: "smooth" }
+          : template === "smooth-incline"
+            ? { kind: "incline", roughness: "smooth" }
+            : { kind: "incline", roughness: "rough" };
     const templateScene: SceneState = {
       ...INITIAL_SCENE,
-      showFriction: template === "incline" || template === "pulley",
+      ...surfacePlacementPatch(templateSurface),
       showPulley: template === "pulley",
       showSpring: template === "spring",
       selectedId: template === "pulley" ? "pulley" : template === "spring" ? "spring" : "incline",
@@ -207,6 +217,7 @@ export function PhysicsEditor() {
     if (!activePage.scene.massLabel.trim()) issues.push("質量ラベルが空です");
     if (activePage.scene.angle < 5 || activePage.scene.angle > 75) issues.push("斜面角が範囲外です");
     if (activePage.scene.forceScale < 0.5) issues.push("力ベクトルが短すぎます");
+    if (hasSurfaceConflict(activePage.scene)) issues.push("滑らかな面に摩擦力が残っています");
     return issues;
   }, [activePage.scene]);
 
@@ -218,27 +229,46 @@ export function PhysicsEditor() {
     pptx.subject = "Editable mechanics diagram";
     const slide = pptx.addSlide();
     slide.background = { color: "FFFFFF" };
-    const angle = (activePage.scene.angle * Math.PI) / 180;
+    const effectiveAngle = effectiveSurfaceAngle(activePage.scene);
+    const angle = (effectiveAngle * Math.PI) / 180;
     const direction = activePage.scene.flipped ? -1 : 1;
     const startX = (activePage.scene.flipped ? 11.1 : 2.2) + activePage.scene.diagramOffsetX * 0.01;
     const startY = 5.8 + activePage.scene.diagramOffsetY * 0.01;
-    const length = 6.6;
+    const length = activePage.scene.surfaceKind === "wall" ? 5 : 6.6;
     const endX = startX + direction * Math.cos(angle) * length;
     const endY = startY - Math.sin(angle) * length;
     slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: endY - startY, line: { color: "18202B", width: 1.8 } });
-    slide.addShape(pptx.ShapeType.line, { x: endX, y: endY, w: 0, h: startY - endY, line: { color: "18202B", width: 1.8 } });
-    slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: 0, line: { color: "18202B", width: 1.8 } });
-    const blockX = startX + (endX - startX) * activePage.scene.blockPosition - 0.6 + activePage.scene.blockOffsetX * 0.01;
-    const blockY = startY + (endY - startY) * activePage.scene.blockPosition - 0.7 + activePage.scene.blockOffsetY * 0.01;
-    slide.addText(activePage.scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: activePage.scene.flipped ? activePage.scene.angle : -activePage.scene.angle, align: "center", valign: "middle", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
-    const centerX = blockX + 0.6;
-    const centerY = blockY + 0.45;
+    const normalX = -direction * Math.sin(angle);
+    const normalY = -Math.cos(angle);
+    if (activePage.scene.surfaceRoughness === "rough") {
+      for (let index = 1; index < 18; index += 1) {
+        const t = index / 18;
+        const x = startX + (endX - startX) * t;
+        const y = startY + (endY - startY) * t;
+        slide.addShape(pptx.ShapeType.line, {
+          x,
+          y,
+          w: -normalX * 0.14 - direction * Math.cos(angle) * 0.05,
+          h: -normalY * 0.14 + Math.sin(angle) * 0.05,
+          line: { color: "18202B", width: 0.8 },
+        });
+      }
+    }
+    if (activePage.scene.surfaceKind === "incline") {
+      slide.addShape(pptx.ShapeType.line, { x: endX, y: endY, w: 0, h: startY - endY, line: { color: "18202B", width: 1.8 } });
+      slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: 0, line: { color: "18202B", width: 1.8 } });
+    }
+    const clearance = surfaceContactClearance(activePage.scene.surfaceKind) * 0.01;
+    const centerX = startX + (endX - startX) * activePage.scene.blockPosition + normalX * clearance + activePage.scene.blockOffsetX * 0.01;
+    const centerY = startY + (endY - startY) * activePage.scene.blockPosition + normalY * clearance + activePage.scene.blockOffsetY * 0.01;
+    const blockX = centerX - 0.6;
+    const blockY = centerY - 0.45;
+    slide.addText(activePage.scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: blockRotationDegrees(activePage.scene), align: "center", valign: "middle", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
     if (activePage.scene.showGravity) {
       slide.addShape(pptx.ShapeType.line, { x: centerX, y: centerY, w: 0, h: 1.5, line: { color: "18202B", width: 1.8, endArrowType: "triangle" } });
       slide.addText("mg", { x: centerX + 0.08, y: centerY + 1.05, w: 0.7, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
     if (activePage.scene.showNormal) {
-      const normalX = -direction * Math.sin(angle);
       slide.addShape(pptx.ShapeType.line, { x: centerX + normalX * 1.5, y: centerY - Math.cos(angle) * 1.5, w: -normalX * 1.5, h: Math.cos(angle) * 1.5, line: { color: "18202B", width: 1.8, beginArrowType: "triangle" } });
       slide.addText("N", { x: centerX + normalX * 1.6 - 0.2, y: centerY - Math.cos(angle) * 1.6 - 0.3, w: 0.5, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
@@ -246,7 +276,9 @@ export function PhysicsEditor() {
       slide.addShape(pptx.ShapeType.line, { x: centerX, y: centerY, w: direction * Math.cos(angle) * 1.5, h: -Math.sin(angle) * 1.5, line: { color: "18202B", width: 1.8, endArrowType: "triangle" } });
       slide.addText("f", { x: centerX + direction * Math.cos(angle) * 1.5, y: centerY - Math.sin(angle) * 1.5 - 0.25, w: 0.4, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
     }
-    slide.addText(`θ = ${activePage.scene.angle}°`, { x: startX + 0.6, y: startY - 0.55, w: 1.2, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 18, margin: 0 });
+    if (activePage.scene.surfaceKind === "incline" && activePage.scene.showAngle) {
+      slide.addText(`θ = ${activePage.scene.angle}°`, { x: startX + 0.6, y: startY - 0.55, w: 1.2, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 18, margin: 0 });
+    }
     await pptx.writeFile({ fileName: `${activePage.title}.pptx` });
     setFlyout(null);
   }, [activePage]);
@@ -254,13 +286,13 @@ export function PhysicsEditor() {
   const commands = useMemo<EditorCommandItem[]>(() => [
     { id: "incline-30", label: "斜面を30°に設定", detail: "選択中の斜面の角度を固定", icon: "incline", run: () => updateScene({ angle: 30, selectedId: "incline" }) },
     { id: "add-block", label: "物体を斜面に追加", detail: "接触制約付きで配置", icon: "box", run: () => updateScene({ selectedId: "block" }) },
-    { id: "add-forces", label: "基本の力を追加", detail: "mg・N・fを候補から追加", icon: "force", run: () => updateScene({ showGravity: true, showNormal: true, showFriction: true, selectedId: "force-gravity" }) },
+    { id: "add-forces", label: "基本の力を追加", detail: activePage.scene.surfaceRoughness === "rough" ? "mg・N・fを候補から追加" : "mg・Nを候補から追加", icon: "force", run: () => updateScene({ showGravity: true, showNormal: true, showFriction: activePage.scene.surfaceRoughness === "rough", selectedId: "force-gravity" }) },
     { id: "add-angle", label: "角度 θ を表示", detail: "斜面と水平線の交角", icon: "angle", run: () => updateScene({ showAngle: true, selectedId: "angle" }) },
     { id: "free-body", label: "自由体図を生成", detail: "変量を共有した別タブを作成", icon: "freebody", run: addFreeBodyPage },
     { id: "grid", label: "グリッドを切り替え", detail: activePage.scene.grid ? "グリッドを非表示" : "グリッドを表示", icon: "grid", run: () => updateScene({ grid: !activePage.scene.grid }) },
     { id: "panels", label: "左パネルを切り替え", detail: "作図領域を拡大", shortcut: "⌘B", icon: "panel", run: () => setWorkspace((current) => ({ ...current, leftPanelVisible: !current.leftPanelVisible })) },
     { id: "export", label: "PPTXとして出力", detail: "PowerPointで編集可能な図形", icon: "export", run: () => setFlyout("export") },
-  ], [activePage.scene.grid, addFreeBodyPage, updateScene]);
+  ], [activePage.scene.grid, activePage.scene.surfaceRoughness, addFreeBodyPage, updateScene]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -297,7 +329,8 @@ export function PhysicsEditor() {
     if (activePage.kind === "blank") {
       setWorkspace((current) => ({ ...current, pages: current.pages.map((page) => page.id === current.activePageId ? { ...page, kind: "incline" } : page) }));
     }
-    if (tool === "incline") updateScene({ selectedId: "incline" });
+    const surfacePreset = surfacePresetForTool(tool);
+    if (surfacePreset) updateScene(surfacePlacementPatch(surfacePreset));
     if (tool === "angle") updateScene({ showAngle: true, selectedId: "angle" });
     if (tool === "axis") updateScene({ showAxis: true, selectedId: "axis" });
     if (tool === "spring") updateScene({ showSpring: true, selectedId: "spring" });

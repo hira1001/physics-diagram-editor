@@ -840,6 +840,7 @@ kbd {
 }
 
 .property-row > input,
+.property-row > select,
 .unit-input {
   height: 28px;
   border: 1px solid var(--border);
@@ -851,6 +852,11 @@ kbd {
 .property-row > input {
   min-width: 0;
   padding: 0 7px;
+}
+
+.property-row > select {
+  min-width: 0;
+  padding: 0 6px;
 }
 
 .unit-input {
@@ -1496,6 +1502,71 @@ kbd {
   border-radius: 4px;
   color: #9a4450;
   background: #fff2f3;
+  cursor: pointer;
+}
+
+.friction-variable-row {
+  display: grid;
+  height: 32px;
+  grid-template-columns: 27px 1fr 70px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+}
+
+.friction-variable-row i {
+  color: #1d5faa;
+  font-family: Georgia, serif;
+  font-size: 16px;
+}
+
+.friction-variable-row span {
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.friction-variable-row input {
+  min-width: 0;
+  height: 26px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.constraint-conflict {
+  margin: 3px 0 7px;
+  padding: 8px;
+  border: 1px solid #e0a8a2;
+  border-radius: 5px;
+  color: #823932;
+  background: #fff5f4;
+}
+
+.constraint-conflict strong,
+.constraint-conflict span {
+  display: block;
+  font-size: 10px;
+}
+
+.constraint-conflict span {
+  margin-top: 2px;
+  color: #9b5b55;
+}
+
+.constraint-conflict > div {
+  display: flex;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.constraint-conflict button {
+  min-height: 25px;
+  padding: 0 7px;
+  border: 1px solid #d8a29c;
+  border-radius: 4px;
+  color: #823932;
+  background: #fff;
+  font-size: 9px;
   cursor: pointer;
 }
 

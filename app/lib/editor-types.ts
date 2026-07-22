@@ -1,4 +1,6 @@
 export type UiDensity = "standard" | "compact";
+export type SurfaceKind = "floor" | "incline" | "wall";
+export type SurfaceRoughness = "rough" | "smooth";
 
 export type SelectionId =
   | "incline"
@@ -14,11 +16,17 @@ export type SelectionId =
   | "text"
   | null;
 
-export type TemplateId = "incline" | "pulley" | "spring" | "freebody";
+export type TemplateId = "horizontal" | "incline" | "pulley" | "rough-wall" | "smooth-incline" | "smooth-wall" | "spring" | "freebody";
 
 export type ToolId =
   | "select"
   | "incline"
+  | "surface-rough-floor"
+  | "surface-rough-incline"
+  | "surface-rough-wall"
+  | "surface-smooth-floor"
+  | "surface-smooth-incline"
+  | "surface-smooth-wall"
   | "block"
   | "force"
   | "angle"
@@ -46,6 +54,9 @@ export interface SceneState {
   massLabelOffsetX: number;
   massLabelOffsetY: number;
   snapEnabled: boolean;
+  surfaceFrictionCoefficient: number;
+  surfaceKind: SurfaceKind;
+  surfaceRoughness: SurfaceRoughness;
   annotationText: string;
   annotationX: number;
   annotationY: number;
@@ -101,6 +112,9 @@ export const INITIAL_SCENE: SceneState = {
   massLabelOffsetX: 0,
   massLabelOffsetY: 0,
   snapEnabled: true,
+  surfaceFrictionCoefficient: 0.3,
+  surfaceKind: "incline",
+  surfaceRoughness: "rough",
   annotationText: "注記",
   annotationX: 0.5,
   annotationY: 0.2,

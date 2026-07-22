@@ -19,6 +19,7 @@ import {
   Type,
 } from "lucide-react";
 import type { SceneState, SelectionId, TemplateId, ToolId } from "@/app/lib/editor-types";
+import { surfaceDisplayName } from "@/app/lib/physics-rules";
 
 type LibraryTab = "add" | "structure";
 
@@ -43,7 +44,12 @@ const libraryItems: Array<{
   meta: string;
   icon: typeof Box;
 }> = [
-  { id: "incline", name: "斜面", meta: "P", icon: Slash },
+  { id: "surface-rough-incline", name: "粗い斜面", meta: "P", icon: Slash },
+  { id: "surface-smooth-incline", name: "滑らかな斜面", meta: "", icon: Slash },
+  { id: "surface-rough-floor", name: "粗い床", meta: "", icon: Slash },
+  { id: "surface-smooth-floor", name: "滑らかな床", meta: "", icon: Slash },
+  { id: "surface-rough-wall", name: "粗い壁", meta: "", icon: Slash },
+  { id: "surface-smooth-wall", name: "滑らかな壁", meta: "", icon: Slash },
   { id: "block", name: "物体", meta: "B", icon: Box },
   { id: "force", name: "力ベクトル", meta: "F", icon: MoveUpRight },
   { id: "angle", name: "角度・寸法", meta: "A", icon: Gauge },
@@ -58,7 +64,7 @@ const structureItems: Array<{
   name: string;
   depth: number;
 }> = [
-  { id: "incline", name: "斜面", depth: 0 },
+  { id: "incline", name: "接触面", depth: 0 },
   { id: "angle", name: "角度弧  θ", depth: 1 },
   { id: "block", name: "物体  m", depth: 0 },
   { id: "mass-label", name: "質量ラベル  m", depth: 1 },
@@ -111,6 +117,10 @@ export function LibraryPanel({
               <span className="mini-template pulley-template" aria-hidden="true"><i /><b /></span>
               <span><strong>二物体と滑車</strong><small>糸と張力を接続</small></span>
             </button>
+            <button className="template-row" type="button" onClick={() => onApplyTemplate("rough-wall")}>
+              <span className="mini-template incline-template" aria-hidden="true"><i /><b /></span>
+              <span><strong>粗い壁と物体</strong><small>N・f・μを連動</small></span>
+            </button>
           </section>
           <section className="library-section grow">
             <div className="section-heading"><ChevronDown size={14} />部品</div>
@@ -133,14 +143,14 @@ export function LibraryPanel({
                   >
                     <Icon size={17} />
                     <span>{item.name}</span>
-                    <kbd>{item.meta}</kbd>
+                    {item.meta ? <kbd>{item.meta}</kbd> : <span />}
                   </button>
                 );
               })}
             </div>
           </section>
           <button className="library-footer" type="button" onClick={onOpenTemplates}>
-            <Orbit size={15} />テンプレートを開く<span>4</span>
+            <Orbit size={15} />テンプレートを開く<span>8</span>
           </button>
         </>
       ) : (
@@ -171,10 +181,10 @@ export function LibraryPanel({
                   key={item.id}
                   style={{ paddingLeft: `${12 + item.depth * 18}px` }}
                 >
-                  <button className="structure-select" type="button" aria-label={item.id === "incline" ? `${item.name} θ = ${scene.angle}°` : item.name} onClick={() => onSelect(item.id)}>
+                  <button className="structure-select" type="button" aria-label={item.id === "incline" ? `${surfaceDisplayName(scene.surfaceKind, scene.surfaceRoughness)}${scene.surfaceKind === "incline" ? ` θ = ${scene.angle}°` : ""}` : item.name} onClick={() => onSelect(item.id)}>
                     {item.depth === 0 ? <ChevronRight size={12} /> : <span className="tree-elbow">└</span>}
                     <MousePointer2 size={13} />
-                    <span>{item.id === "incline" ? `${item.name}  θ = ${scene.angle}°` : item.name}</span>
+                    <span>{item.id === "incline" ? `${surfaceDisplayName(scene.surfaceKind, scene.surfaceRoughness)}${scene.surfaceKind === "incline" ? `  θ = ${scene.angle}°` : ""}` : item.name}</span>
                   </button>
                   {canToggle ? <button className="visibility-control" type="button" onClick={toggleVisibility} aria-label={`${item.name}を${isVisible ? "非表示" : "表示"}`}>{isVisible ? <Eye size={13} /> : <EyeOff size={13} />}</button> : <span />}
                 </div>

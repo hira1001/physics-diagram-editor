@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlipHorizontal2, Link2, MoveUpRight, RotateCcw, Trash2 } from "lucide-react";
 import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
 import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor-types";
+import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 
 interface EditorCanvasProps {
   activeTool: ToolId;
@@ -67,9 +68,12 @@ export function createGeometry(width: number, height: number, scene: SceneState,
   const offsetY = artboard.y + (artboard.height - contentHeight) / 2;
   const toPoint = (x: number, y: number): Point => ({ x: offsetX + x * scale, y: offsetY + y * scale });
   const direction = scene.flipped ? -1 : 1;
-  const start = toPoint((scene.flipped ? 795 : 205) + scene.diagramOffsetX, 474 + scene.diagramOffsetY);
-  const length = 590 * scale;
-  const radians = (scene.angle * Math.PI) / 180;
+  const start = toPoint(
+    (scene.flipped ? 795 : 205) + scene.diagramOffsetX,
+    (scene.surfaceKind === "wall" ? 550 : 474) + scene.diagramOffsetY,
+  );
+  const length = (scene.surfaceKind === "wall" ? 460 : 590) * scale;
+  const radians = (effectiveSurfaceAngle(scene) * Math.PI) / 180;
   const tangent = { x: direction * Math.cos(radians), y: -Math.sin(radians) };
   const normal = { x: -direction * Math.sin(radians), y: -Math.cos(radians) };
   const end = { x: start.x + tangent.x * length, y: start.y + tangent.y * length };
@@ -78,16 +82,16 @@ export function createGeometry(width: number, height: number, scene: SceneState,
     y: start.y + tangent.y * length * scene.blockPosition,
   };
   const blockCenter = {
-    x: linePoint.x + normal.x * 58 * scale + scene.blockOffsetX * scale,
-    y: linePoint.y + normal.y * 58 * scale + scene.blockOffsetY * scale,
+    x: linePoint.x + normal.x * surfaceContactClearance(scene.surfaceKind) * scale + scene.blockOffsetX * scale,
+    y: linePoint.y + normal.y * surfaceContactClearance(scene.surfaceKind) * scale + scene.blockOffsetY * scale,
   };
   const forceLength = 116 * scale * scene.forceScale;
   const forceGravityEnd = { x: blockCenter.x, y: blockCenter.y + forceLength };
   const forceNormalEnd = { x: blockCenter.x + normal.x * forceLength, y: blockCenter.y + normal.y * forceLength };
   const forceFrictionEnd = { x: blockCenter.x + tangent.x * forceLength, y: blockCenter.y + tangent.y * forceLength };
-  const blockRotation = scene.flipped ? radians : -radians;
+  const blockRotation = (blockRotationDegrees(scene) * Math.PI) / 180;
   const massLocal = {
-    x: (-25 + scene.massLabelOffsetX) * scale,
+    x: (massLabelBaseX(scene) + scene.massLabelOffsetX) * scale,
     y: (18 + scene.massLabelOffsetY) * scale,
   };
   const massLabelPoint = {
@@ -112,7 +116,10 @@ export function createGeometry(width: number, height: number, scene: SceneState,
     forceGravityEnd,
     forceNormalEnd,
     massLabelPoint,
-    origin: toPoint(150 + scene.diagramOffsetX, 165 + scene.diagramOffsetY),
+    origin: toPoint(
+      (scene.surfaceKind === "wall" ? (scene.flipped ? 300 : 700) : 150) + scene.diagramOffsetX,
+      165 + scene.diagramOffsetY,
+    ),
     scale,
     start,
     tangent,
@@ -237,9 +244,28 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.beginPath();
   ctx.moveTo(start.x, start.y);
   ctx.lineTo(end.x, end.y);
-  ctx.lineTo(end.x, start.y);
-  ctx.closePath();
+  if (scene.surfaceKind === "incline") {
+    ctx.lineTo(end.x, start.y);
+    ctx.closePath();
+  }
   ctx.stroke();
+
+  if (scene.surfaceRoughness === "rough") {
+    ctx.save();
+    ctx.lineWidth = 1.1 * scale;
+    for (let index = 1; index < 18; index += 1) {
+      const t = index / 18;
+      const point = { x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t };
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.lineTo(
+        point.x - geometry.normal.x * 12 * scale - tangent.x * 5 * scale,
+        point.y - geometry.normal.y * 12 * scale - tangent.y * 5 * scale,
+      );
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   if (scene.selectedId === "incline") {
     ctx.save();
@@ -253,13 +279,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.restore();
   }
 
-  if (scene.showAngle) {
+  if (scene.showAngle && scene.surfaceKind === "incline") {
     const radius = 73 * scale;
     ctx.save();
     ctx.strokeStyle = scene.selectedId === "angle" ? "#3178d4" : "#18202b";
     ctx.lineWidth = 1.8 * scale;
     ctx.beginPath();
-    const radians = (scene.angle * Math.PI) / 180;
+    const radians = (effectiveSurfaceAngle(scene) * Math.PI) / 180;
     if (scene.flipped) ctx.arc(start.x, start.y, radius, Math.PI, Math.PI + radians);
     else ctx.arc(start.x, start.y, radius, -radians, 0);
     ctx.stroke();
@@ -273,7 +299,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
 
   ctx.save();
   ctx.translate(blockCenter.x, blockCenter.y);
-  ctx.rotate((scene.flipped ? 1 : -1) * ((scene.angle * Math.PI) / 180));
+  ctx.rotate((blockRotationDegrees(scene) * Math.PI) / 180);
   const blockWidth = 150 * scale;
   const blockHeight = 96 * scale;
   ctx.fillStyle = "#ffffff";
@@ -287,16 +313,16 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   // body so their shaft and arrowhead can never disappear behind its fill.
   if (scene.showGravity) arrow(ctx, blockCenter, geometry.forceGravityEnd, "mg", scale, scene.selectedId === "force-gravity" ? "#3178d4" : undefined);
   if (scene.showNormal) arrow(ctx, blockCenter, geometry.forceNormalEnd, "N", scale, scene.selectedId === "force-normal" ? "#3178d4" : undefined);
-  if (scene.showFriction) arrow(ctx, blockCenter, geometry.forceFrictionEnd, "f", scale, scene.selectedId === "force-friction" ? "#3178d4" : undefined);
+  if (scene.showFriction) arrow(ctx, blockCenter, geometry.forceFrictionEnd, "f", scale, hasSurfaceConflict(scene) ? "#b14840" : scene.selectedId === "force-friction" ? "#3178d4" : undefined);
 
   // Diagram labels are the top-most content layer, above objects and vectors.
   ctx.save();
   ctx.translate(blockCenter.x, blockCenter.y);
-  ctx.rotate((scene.flipped ? 1 : -1) * ((scene.angle * Math.PI) / 180));
+  ctx.rotate((blockRotationDegrees(scene) * Math.PI) / 180);
   ctx.fillStyle = "#18202b";
   ctx.font = `italic ${Math.max(21, 29 * scale)}px Georgia, serif`;
   ctx.textAlign = "center";
-  ctx.fillText(scene.massLabel, (-25 + scene.massLabelOffsetX) * scale, (18 + scene.massLabelOffsetY) * scale);
+  ctx.fillText(scene.massLabel, (massLabelBaseX(scene) + scene.massLabelOffsetX) * scale, (18 + scene.massLabelOffsetY) * scale);
   ctx.restore();
 
   if (scene.selectedId === "mass-label") {
@@ -432,10 +458,11 @@ export function EditorCanvas({
     setSuggestion(null);
 
     if (activeTool !== "select") {
-      const patch: Partial<SceneState> = { selectedId: activeTool === "force" ? "force-gravity" : activeTool as SelectionId };
+      const surfacePreset = surfacePresetForTool(activeTool);
+      const patch: Partial<SceneState> = surfacePreset ? surfacePlacementPatch(surfacePreset) : { selectedId: activeTool === "force" ? "force-gravity" : activeTool as SelectionId };
       if (activeTool === "angle") patch.showAngle = true;
       if (activeTool === "axis") patch.showAxis = true;
-      if (activeTool === "force") Object.assign(patch, { showGravity: true, showNormal: true, showFriction: true });
+      if (activeTool === "force") Object.assign(patch, { showGravity: true, showNormal: true, showFriction: scene.surfaceRoughness === "rough" });
       if (activeTool === "spring") patch.showSpring = true;
       if (activeTool === "pulley") patch.showPulley = true;
       if (activeTool === "text") {
@@ -465,7 +492,7 @@ export function EditorCanvas({
     if (!hit) return;
     dragStartSceneRef.current = { ...scene };
     dragStartPointRef.current = point;
-    if (hit === "incline" && distance(point, geometry.end) < 32) setDragMode("angle");
+    if (hit === "incline" && scene.surfaceKind === "incline" && distance(point, geometry.end) < 32) setDragMode("angle");
     else if (hit === "incline") setDragMode("diagram");
     else if (hit === "angle") setDragMode("angle-label");
     else if (hit === "mass-label") setDragMode("mass-label");
@@ -478,14 +505,15 @@ export function EditorCanvas({
   const handleDrop = useCallback((event: React.DragEvent<HTMLCanvasElement>) => {
     event.preventDefault();
     const droppedTool = event.dataTransfer.getData("application/x-physics-tool") as ToolId;
-    const validTools: ToolId[] = ["incline", "block", "force", "angle", "axis", "spring", "pulley", "text"];
+    const validTools: ToolId[] = ["incline", "surface-rough-floor", "surface-rough-incline", "surface-rough-wall", "surface-smooth-floor", "surface-smooth-incline", "surface-smooth-wall", "block", "force", "angle", "axis", "spring", "pulley", "text"];
     if (!validTools.includes(droppedTool)) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    const patch: Partial<SceneState> = { selectedId: droppedTool === "force" ? "force-gravity" : droppedTool as SelectionId };
+    const surfacePreset = surfacePresetForTool(droppedTool);
+    const patch: Partial<SceneState> = surfacePreset ? surfacePlacementPatch(surfacePreset) : { selectedId: droppedTool === "force" ? "force-gravity" : droppedTool as SelectionId };
     if (droppedTool === "angle") patch.showAngle = true;
     if (droppedTool === "axis") patch.showAxis = true;
-    if (droppedTool === "force") Object.assign(patch, { showGravity: true, showNormal: true, showFriction: true });
+    if (droppedTool === "force") Object.assign(patch, { showGravity: true, showNormal: true, showFriction: scene.surfaceRoughness === "rough" });
     if (droppedTool === "spring") patch.showSpring = true;
     if (droppedTool === "pulley") patch.showPulley = true;
     if (droppedTool === "text") {
@@ -501,7 +529,7 @@ export function EditorCanvas({
     }
     onSceneChange(patch);
     onToolComplete();
-  }, [geometry, onSceneChange, onToolComplete]);
+  }, [geometry, onSceneChange, onToolComplete, scene.surfaceRoughness]);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
     const point = canvasPoint(event);
@@ -531,7 +559,7 @@ export function EditorCanvas({
       return;
     }
     if (dragMode === "mass-label" && startScene && startPoint) {
-      const rotation = (scene.flipped ? 1 : -1) * (scene.angle * Math.PI) / 180;
+      const rotation = (blockRotationDegrees({ angle: scene.angle, flipped: scene.flipped, surfaceKind: scene.surfaceKind }) * Math.PI) / 180;
       const dx = (point.x - startPoint.x) / geometry.scale;
       const dy = (point.y - startPoint.y) / geometry.scale;
       onSceneChange({
@@ -578,7 +606,7 @@ export function EditorCanvas({
     }
     if (activeTool === "select" && distance(point, geometry.start) < 58) setSuggestion({ x: point.x + 14, y: point.y + 14 });
     else setSuggestion(null);
-  }, [activeTool, canvasPoint, dragMode, geometry, onPointerPositionChange, onSceneChange, scene.angle, scene.contactConstraint, scene.flipped, scene.snapEnabled]);
+  }, [activeTool, canvasPoint, dragMode, geometry, onPointerPositionChange, onSceneChange, scene.angle, scene.contactConstraint, scene.flipped, scene.snapEnabled, scene.surfaceKind]);
 
   const handlePointerUp = useCallback(() => {
     if (dragMode && dragStartSceneRef.current) onCommitSnapshot(dragStartSceneRef.current);
@@ -659,7 +687,7 @@ export function EditorCanvas({
       {hudPosition && !dragMode ? (
         <div className="selection-hud" style={hudPosition}>
           {scene.selectedId === "incline" || scene.selectedId === "angle" ? (
-            <label><span>θ</span><SceneNumericInput min="5" max="75" property="angle" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></label>
+            scene.surfaceKind === "incline" ? <label><span>θ</span><SceneNumericInput min="5" max="75" property="angle" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></label> : <span className="hud-name">{surfaceDisplayName(scene.surfaceKind, scene.surfaceRoughness)}</span>
           ) : scene.selectedId === "block" || scene.selectedId === "mass-label" ? (
             <label><span>質量</span><SceneTextInput property="massLabel" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
           ) : scene.selectedId === "text" ? (
@@ -671,7 +699,7 @@ export function EditorCanvas({
           {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle") ? <button type="button" title="左右反転" onClick={() => onSceneChange({ flipped: !scene.flipped, blockPosition: 1 - scene.blockPosition })}><FlipHorizontal2 size={14} /></button> : null}
           {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle" || scene.selectedId === "block" || scene.selectedId === "mass-label") ? <button className={scene.contactConstraint ? "active" : ""} type="button" title="接触制約" onClick={() => onSceneChange({ contactConstraint: !scene.contactConstraint, ...(!scene.contactConstraint ? { blockOffsetX: 0, blockOffsetY: 0 } : {}) })}><Link2 size={14} /></button> : null}
           <button type="button" title="位置をリセット" onClick={() => onSceneChange(pageKind === "freebody" ? { diagramOffsetX: 0, diagramOffsetY: 0 } : scene.selectedId === "angle" ? { angleLabelOffsetX: 0, angleLabelOffsetY: 0 } : scene.selectedId === "mass-label" || scene.selectedId === "block" ? { massLabelOffsetX: 0, massLabelOffsetY: 0 } : scene.selectedId === "text" ? { annotationX: 0.5, annotationY: 0.2 } : { diagramOffsetX: 0, diagramOffsetY: 0 })}><RotateCcw size={14} /></button>
-          {scene.selectedId === "text" ? <button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button> : scene.selectedId === "block" || scene.selectedId === "mass-label" ? <button type="button" title="力を追加" onClick={() => onSceneChange({ showGravity: true, showNormal: true, showFriction: true })}><MoveUpRight size={14} /></button> : null}
+          {scene.selectedId === "text" ? <button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button> : scene.selectedId === "block" || scene.selectedId === "mass-label" ? <button type="button" title="力を追加" onClick={() => onSceneChange({ showGravity: true, showNormal: true, ...(scene.surfaceRoughness === "rough" ? { showFriction: true } : {}) })}><MoveUpRight size={14} /></button> : null}
         </div>
       ) : null}
 

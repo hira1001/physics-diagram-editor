@@ -20,13 +20,16 @@
 | `DSC-008`, `DSC-011` | Chrome、Firefox、WebKit | 合格 | Cmd/Ctrl+K、検索、Enterによる登録コマンド1回実行 |
 | `DIR-001`, `DIR-002`, `PHY-013` | Chrome、Firefox、WebKit | 合格 | テキスト部品のドラッグ配置、クリック配置、実体編集 |
 | `SHL-010`, `SHL-013` | Chrome、Firefox、WebKit | 合格 | 構造ツリーの厳密選択、自由体図/追加図タブ切替 |
+| `PHY-040`〜`PHY-046` | Unit、Chrome、Firefox、WebKit | 合格 | 滑らか/粗い壁・床・斜面の物理属性、力候補、粗面ハッチ、壁専用レイアウト。全体で27枚のブラウザ別Visual Regression基準画像 |
+| `INS-013`, `INS-014` | Chrome、Firefox、WebKit | 合格 | 滑らかな面に残る摩擦力を対象と同色で警告し、非破壊の解消候補を提示 |
+| `TPL-019`, `TPL-020` | Chrome、Firefox、WebKit | 合格 | 粗い壁、滑らかな壁のテンプレートを実部品として適用・再編集 |
 
 ### コマンド結果
 
 | コマンド群 | 結果 |
 |---|---|
-| Unit | 2ファイル、9テスト合格 |
-| E2E | 3ブラウザ、45テスト合格 |
+| Unit | 3ファイル、23テスト合格 |
+| E2E | 3ブラウザ、54テスト合格（スナップショット更新後の再実行も同数合格） |
 | TypeScript | 合格 |
 | ESLint | 合格 |
 | Production build / server render | 合格 |

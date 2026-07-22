@@ -37,9 +37,9 @@ test("SHL-001/003/019: editor shell contains only functional drawing controls", 
   await expect(page.getByText("解答", { exact: true })).toHaveCount(0);
   await expect(page.getByText("解説", { exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "テンプレートを開く 4", exact: true }).click();
+  await page.getByRole("button", { name: "テンプレートを開く 8", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "テンプレート" })).toBeVisible();
-  await page.getByRole("button", { name: "斜面上の物体 斜面・物体・基本3力 θ / m / mg / N / f", exact: true }).click();
+  await page.getByRole("button", { name: "粗い斜面上の物体 斜面・物体・基本3力 θ / m / mg / N / f / μ", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "テンプレート" })).toHaveCount(0);
 });
 
@@ -224,4 +224,72 @@ test("SHL-010/013: structure selection and diagram tabs select exact targets", a
   await expect(statusbar.getByRole("button", { name: "自由体図", exact: true })).toHaveAttribute("aria-current", "page");
   await statusbar.getByRole("button", { name: "図を追加", exact: true }).click();
   await expect(statusbar.getByRole("button", { name: "図3", exact: true })).toHaveAttribute("aria-current", "page");
+});
+
+test("PHY-040/041: smooth and rough walls expose different physical semantics", async ({ page }) => {
+  const openTemplates = page.getByRole("button", { name: "テンプレートを開く 8", exact: true });
+  await openTemplates.click();
+  await page.getByRole("button", { name: "滑らかな壁と物体 壁面の法線力 m / mg / N", exact: true }).click();
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await expect(inspector.getByText("滑らかな壁", { exact: true })).toBeVisible();
+  await expect(inspector.getByLabel("接触面の向き")).toHaveValue("wall");
+  await expect(inspector.getByLabel("接触面の粗さ")).toHaveValue("smooth");
+  await expect(inspector.getByLabel("摩擦係数")).toHaveCount(0);
+  await inspector.getByRole("button", { name: "外観", exact: true }).click();
+  await expect(inspector.getByLabel("摩擦力", { exact: true })).not.toBeChecked();
+  await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("smooth-wall.png");
+
+  await openTemplates.click();
+  await page.getByRole("button", { name: "粗い壁と物体 壁面の摩擦を含む m / mg / N / f / μ", exact: true }).click();
+  await expect(inspector.getByText("粗い壁", { exact: true })).toBeVisible();
+  await expect(inspector.getByLabel("摩擦係数")).toHaveValue("0.3");
+  await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("rough-wall.png");
+});
+
+test("PHY-042/043/044/045: floor and incline presets preserve their contact rules", async ({ page }) => {
+  const openTemplates = page.getByRole("button", { name: "テンプレートを開く 8", exact: true });
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+
+  await openTemplates.click();
+  await page.getByRole("button", { name: "粗い水平面 床上の物体と外力 m / mg / N / f / μ", exact: true }).click();
+  await expect(inspector.getByLabel("接触面の向き")).toHaveValue("floor");
+  await expect(inspector.getByLabel("接触面の粗さ")).toHaveValue("rough");
+  await expect(inspector.getByLabel("摩擦係数")).toBeVisible();
+  await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("rough-floor.png");
+
+  await inspector.getByLabel("接触面の粗さ").selectOption("smooth");
+  await expect(inspector.getByRole("alert")).toContainText("滑らかな面に摩擦力があります");
+  await inspector.getByRole("button", { name: "摩擦力を外す", exact: true }).click();
+  await expect(inspector.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("smooth-floor.png");
+
+  await openTemplates.click();
+  await page.getByRole("button", { name: "滑らかな斜面 摩擦なしの斜面 θ / m / mg / N", exact: true }).click();
+  await expect(inspector.getByLabel("接触面の向き")).toHaveValue("incline");
+  await expect(inspector.getByLabel("接触面の粗さ")).toHaveValue("smooth");
+  await expect(inspector.getByLabel("摩擦係数")).toHaveCount(0);
+  await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("smooth-incline.png");
+
+  await openTemplates.click();
+  await page.getByRole("button", { name: "粗い斜面上の物体 斜面・物体・基本3力 θ / m / mg / N / f / μ", exact: true }).click();
+  await expect(inspector.getByLabel("接触面の粗さ")).toHaveValue("rough");
+  const angle = inspector.getByRole("spinbutton", { name: "角度 °", exact: true });
+  await angle.fill("45");
+  await angle.press("Enter");
+  await expect(angle).toHaveValue("45");
+  await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("rough-incline-45.png");
+});
+
+test("PHY-046 and INS-013/014: surface conflicts are visible and resolved without silent deletion", async ({ page }) => {
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await inspector.getByLabel("接触面の粗さ").selectOption("smooth");
+
+  const conflict = inspector.getByRole("alert");
+  await expect(conflict).toContainText("滑らかな面に摩擦力があります");
+  await expect(page.getByTestId("editor-canvas")).toHaveScreenshot("smooth-surface-friction-conflict.png");
+
+  await conflict.getByRole("button", { name: "粗い面に変更", exact: true }).click();
+  await expect(conflict).toHaveCount(0);
+  await expect(inspector.getByLabel("接触面の粗さ")).toHaveValue("rough");
 });

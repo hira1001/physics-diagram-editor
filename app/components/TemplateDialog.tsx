@@ -15,7 +15,11 @@ const templates: Array<{
   detail: string;
   icon: typeof Slash;
 }> = [
-  { id: "incline", name: "斜面上の物体", description: "斜面・物体・基本3力", detail: "θ / m / mg / N / f", icon: Slash },
+  { id: "incline", name: "粗い斜面上の物体", description: "斜面・物体・基本3力", detail: "θ / m / mg / N / f / μ", icon: Slash },
+  { id: "smooth-incline", name: "滑らかな斜面", description: "摩擦なしの斜面", detail: "θ / m / mg / N", icon: Slash },
+  { id: "horizontal", name: "粗い水平面", description: "床上の物体と外力", detail: "m / mg / N / f / μ", icon: Slash },
+  { id: "rough-wall", name: "粗い壁と物体", description: "壁面の摩擦を含む", detail: "m / mg / N / f / μ", icon: Slash },
+  { id: "smooth-wall", name: "滑らかな壁と物体", description: "壁面の法線力", detail: "m / mg / N", icon: Slash },
   { id: "pulley", name: "斜面と滑車", description: "滑車と糸を接続", detail: "θ / m / T / mg", icon: CircleDot },
   { id: "spring", name: "斜面とばね", description: "ばねと物体を配置", detail: "θ / m / k / x", icon: Waves },
   { id: "freebody", name: "自由体図", description: "選択中の変量を共有", detail: "m / mg / N / f", icon: Layers3 },

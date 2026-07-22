@@ -28,6 +28,7 @@ const numericSceneKeys: Array<keyof SceneState> = [
   "forceScale",
   "massLabelOffsetX",
   "massLabelOffsetY",
+  "surfaceFrictionCoefficient",
 ];
 
 function finiteOr(value: unknown, fallback: number) {
@@ -49,6 +50,9 @@ export function normalizeScene(candidate: unknown): SceneState {
   scene.forceScale = clamp(scene.forceScale, 0.5, 1.8);
   scene.annotationX = clamp(scene.annotationX, 0.04, 0.96);
   scene.annotationY = clamp(scene.annotationY, 0.04, 0.96);
+  scene.surfaceFrictionCoefficient = clamp(scene.surfaceFrictionCoefficient, 0, 10);
+  scene.surfaceKind = source.surfaceKind === "floor" || source.surfaceKind === "wall" || source.surfaceKind === "incline" ? source.surfaceKind : INITIAL_SCENE.surfaceKind;
+  scene.surfaceRoughness = source.surfaceRoughness === "smooth" || source.surfaceRoughness === "rough" ? source.surfaceRoughness : INITIAL_SCENE.surfaceRoughness;
   scene.massLabel = typeof source.massLabel === "string" ? source.massLabel.slice(0, 40) : INITIAL_SCENE.massLabel;
   scene.annotationText = typeof source.annotationText === "string" ? source.annotationText.slice(0, 200) : INITIAL_SCENE.annotationText;
   return scene;
