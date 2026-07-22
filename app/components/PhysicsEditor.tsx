@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -68,8 +68,25 @@ function selectedCatalogElements(scene: SceneState) {
   return selectedId ? scene.elements.filter((element) => element.id === selectedId) : scene.elements;
 }
 
+function canonicalWorkspaceStorage(raw: string | null) {
+  if (raw === null) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { pages?: unknown }).pages)) return `invalid:${raw}`;
+    return serializeWorkspace(restoreWorkspace(raw).workspace);
+  } catch {
+    return `invalid:${raw}`;
+  }
+}
+
+function storageValuesMatch(left: string | null, right: string | null) {
+  return left === right || canonicalWorkspaceStorage(left) === canonicalWorkspaceStorage(right);
+}
+
 export function PhysicsEditor() {
   const [workspace, setWorkspace] = useState<WorkspaceState>(INITIAL_WORKSPACE);
+  const workspaceRef = useRef(workspace);
+  const lastPersistedRawRef = useRef<string | null>(null);
   const [undoStack, setUndoStack] = useState<WorkspaceState[]>([]);
   const [redoStack, setRedoStack] = useState<WorkspaceState[]>([]);
   const [activeTool, setActiveTool] = useState<ToolId>("select");
@@ -91,7 +108,9 @@ export function PhysicsEditor() {
   const activePage = workspace.pages.find((page) => page.id === workspace.activePageId) ?? workspace.pages[0];
 
   useEffect(() => {
-    const restored = restoreWorkspace(window.localStorage.getItem(WORKSPACE_STORAGE_KEY));
+    const raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
+    lastPersistedRawRef.current = raw;
+    const restored = restoreWorkspace(raw);
     const tourCompleted = window.localStorage.getItem(`${WORKSPACE_STORAGE_KEY}-tour`) === "done";
     const frame = window.requestAnimationFrame(() => {
       setWorkspace(restored.workspace);
@@ -105,7 +124,15 @@ export function PhysicsEditor() {
     const statusTimer = window.setTimeout(() => setSaveStatus("saving"), 0);
     const timer = window.setTimeout(() => {
       try {
-        window.localStorage.setItem(WORKSPACE_STORAGE_KEY, serializeWorkspace(workspace));
+        const currentRaw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
+        if (!storageValuesMatch(currentRaw, lastPersistedRawRef.current)) {
+          setSaveStatus("error");
+          setSystemNotice("別のタブで図が更新されました。再読込してから編集を続けてください");
+          return;
+        }
+        const nextRaw = serializeWorkspace(workspace);
+        window.localStorage.setItem(WORKSPACE_STORAGE_KEY, nextRaw);
+        lastPersistedRawRef.current = nextRaw;
         setSaveStatus("saved");
       } catch {
         setSaveStatus("error");
@@ -118,9 +145,40 @@ export function PhysicsEditor() {
     };
   }, [workspace]);
 
+  useEffect(() => {
+    workspaceRef.current = workspace;
+  }, [workspace]);
+
+  useEffect(() => {
+    const persistLatestWorkspace = () => {
+      try {
+        if (!storageValuesMatch(window.localStorage.getItem(WORKSPACE_STORAGE_KEY), lastPersistedRawRef.current)) return;
+        const nextRaw = serializeWorkspace(workspaceRef.current);
+        window.localStorage.setItem(WORKSPACE_STORAGE_KEY, nextRaw);
+        lastPersistedRawRef.current = nextRaw;
+      } catch {
+        // The normal autosave path already exposes storage failures in the UI.
+        // During page teardown there is no reliable opportunity to render one.
+      }
+    };
+    window.addEventListener("beforeunload", persistLatestWorkspace);
+    window.addEventListener("pagehide", persistLatestWorkspace);
+    return () => {
+      window.removeEventListener("beforeunload", persistLatestWorkspace);
+      window.removeEventListener("pagehide", persistLatestWorkspace);
+    };
+  }, []);
+
   const saveNow = useCallback(() => {
     try {
-      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, serializeWorkspace(workspace));
+      if (!storageValuesMatch(window.localStorage.getItem(WORKSPACE_STORAGE_KEY), lastPersistedRawRef.current)) {
+        setSaveStatus("error");
+        setSystemNotice("別のタブで図が更新されました。再読込してから編集を続けてください");
+        return;
+      }
+      const nextRaw = serializeWorkspace(workspace);
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, nextRaw);
+      lastPersistedRawRef.current = nextRaw;
       setSaveStatus("saved");
       setSystemNotice("現在の図を端末へ保存しました");
     } catch {
@@ -128,6 +186,20 @@ export function PhysicsEditor() {
       setSystemNotice("端末への保存に失敗しました。空き容量とブラウザ設定を確認してください");
     }
   }, [workspace]);
+
+  useEffect(() => {
+    const handleExternalWorkspaceChange = (event: StorageEvent) => {
+      if (event.key !== WORKSPACE_STORAGE_KEY) return;
+      if (storageValuesMatch(event.newValue, lastPersistedRawRef.current)) {
+        lastPersistedRawRef.current = event.newValue;
+        return;
+      }
+      setSaveStatus("error");
+      setSystemNotice("別のタブで図が更新されました。再読込してから編集を続けてください");
+    };
+    window.addEventListener("storage", handleExternalWorkspaceChange);
+    return () => window.removeEventListener("storage", handleExternalWorkspaceChange);
+  }, []);
 
   const recordWorkspace = useCallback((snapshot: WorkspaceState) => {
     setUndoStack((stack) => [...stack.slice(-39), cloneWorkspace(snapshot)]);

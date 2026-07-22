@@ -11,10 +11,14 @@ describe("ARC-001/002/003 and REL-002/004/005 workspace persistence", () => {
     source.rightPanelWidth = 360;
     source.pages[0].scene.angle = 47;
     source.pages[0].scene.massLabelOffsetX = 22;
+    source.pages[0].scene.variables.push({ id: "variable-length", referenceIds: ["incline"], symbol: "L", type: "length", unit: "m", value: "2.5" });
+    source.pages[0].scene.constraints.push({ id: "constraint-parallel", conflict: null, enabled: true, kind: "parallel", strength: "preferred", targetIds: ["incline", "axis"] });
 
     const restored = restoreWorkspace(serializeWorkspace(source));
 
     expect(restored.workspace).toEqual(source);
+    expect(restored.workspace.pages[0].scene.variables.at(-1)).toEqual(source.pages[0].scene.variables.at(-1));
+    expect(restored.workspace.pages[0].scene.constraints.at(-1)).toEqual(source.pages[0].scene.constraints.at(-1));
     expect(restored.recovered).toBe(false);
   });
 

@@ -37,6 +37,11 @@ test.beforeEach(async ({ page }) => {
 test("SHL-001/003/019: editor shell contains only functional drawing controls", async ({ page }) => {
   await expect(page.getByRole("button", { name: "出力", exact: true })).toBeEnabled();
   await expect(page.getByPlaceholder("操作・部品を検索…")).toBeVisible();
+  const bodyBox = await page.locator(".editor-body").boundingBox();
+  const canvasBox = await page.getByTestId("editor-canvas").boundingBox();
+  if (!bodyBox || !canvasBox) throw new Error("Editor shell geometry is unavailable");
+  expect(canvasBox.width).toBeGreaterThan(bodyBox.width / 2);
+  expect(canvasBox.height).toBeGreaterThan(bodyBox.height * .85);
   await expect(page.getByText("問題", { exact: true })).toHaveCount(0);
   await expect(page.getByText("解答", { exact: true })).toHaveCount(0);
   await expect(page.getByText("解説", { exact: true })).toHaveCount(0);
@@ -72,16 +77,30 @@ test("DIR-008: mass label m can be dragged independently", async ({ page }) => {
   const { box, geometry } = await canvasGeometry(page);
   await dragCanvasPoint(page, box, geometry.massLabelPoint, { x: 36, y: -22 });
 
-  await expect(page.getByRole("spinbutton", { name: "文字 X" })).not.toHaveValue("0");
-  await expect(page.getByRole("spinbutton", { name: "文字 Y" })).not.toHaveValue("0");
+  const x = page.getByRole("spinbutton", { name: "文字 X" });
+  const y = page.getByRole("spinbutton", { name: "文字 Y" });
+  await expect(x).not.toHaveValue("0");
+  await expect(y).not.toHaveValue("0");
+  const saved = { x: await x.inputValue(), y: await y.inputValue() };
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await page.reload();
+  await expect(page.getByRole("spinbutton", { name: "文字 X" })).toHaveValue(saved.x);
+  await expect(page.getByRole("spinbutton", { name: "文字 Y" })).toHaveValue(saved.y);
 });
 
 test("DIR-009: angle label theta can be dragged independently", async ({ page }) => {
   const { box, geometry } = await canvasGeometry(page);
   await dragCanvasPoint(page, box, geometry.anglePoint, { x: 34, y: -20 });
 
-  await expect(page.getByRole("spinbutton", { name: "文字 X" })).not.toHaveValue("0");
-  await expect(page.getByRole("spinbutton", { name: "文字 Y" })).not.toHaveValue("0");
+  const x = page.getByRole("spinbutton", { name: "文字 X" });
+  const y = page.getByRole("spinbutton", { name: "文字 Y" });
+  await expect(x).not.toHaveValue("0");
+  await expect(y).not.toHaveValue("0");
+  const saved = { x: await x.inputValue(), y: await y.inputValue() };
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await page.reload();
+  await expect(page.getByRole("spinbutton", { name: "文字 X" })).toHaveValue(saved.x);
+  await expect(page.getByRole("spinbutton", { name: "文字 Y" })).toHaveValue(saved.y);
 });
 
 test("REL-014: primary P0 flow produces no browser errors", async ({ page }) => {
@@ -115,13 +134,19 @@ test("REL-003: density, panels, and zoom restore after reload", async ({ page })
   await page.getByRole("button", { name: "メニュー", exact: true }).click();
   await page.getByLabel("UI密度").selectOption("compact");
   await page.getByRole("button", { name: "拡大", exact: true }).click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+B" : "Control+B");
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+Alt+B" : "Control+Alt+B");
   await expect(page.locator(".physics-editor")).toHaveClass(/density-compact/);
   await expect(page.getByText("110%", { exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "部品と図の構造" })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "選択対象の設定" })).toHaveCount(0);
   await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
 
   await page.reload();
   await expect(page.locator(".physics-editor")).toHaveClass(/density-compact/);
   await expect(page.getByText("110%", { exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "部品と図の構造" })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "選択対象の設定" })).toHaveCount(0);
 });
 
 test("REL-004/005: legacy and corrupt saved data recover safely", async ({ page }) => {
@@ -154,6 +179,155 @@ test("REL-006: storage failure never claims the document was saved", async ({ pa
 
   await expect(page.getByText("保存できません", { exact: true })).toBeVisible({ timeout: 2_000 });
   await expect(page.getByRole("alert")).toContainText("端末への保存に失敗しました");
+});
+
+test("REL-007/008: add, move, edit, and delete round-trip while a new edit discards the old redo branch", async ({ page }) => {
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  const angle = inspector.getByRole("spinbutton", { name: "角度 °" });
+  const undo = page.getByRole("button", { name: "元に戻す", exact: true });
+  const redo = page.getByRole("button", { name: "やり直す", exact: true });
+
+  await angle.fill("40");
+  await angle.press("Enter");
+  await undo.click();
+  await expect(angle).toHaveValue("30");
+  await expect(redo).toBeEnabled();
+  await angle.fill("50");
+  await angle.press("Enter");
+  await expect(redo).toBeDisabled();
+
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  await page.getByTestId("editor-canvas").click({ position: { x: 620, y: 190 } });
+  const xInput = inspector.getByRole("spinbutton", { name: "X", exact: true });
+  const originalX = await xInput.inputValue();
+  await xInput.fill("720");
+  await xInput.press("Enter");
+  await inspector.getByRole("button", { name: "削除", exact: true }).click();
+
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  const blocks = page.locator(".catalog-structure").getByRole("button", { name: "物体 m", exact: true });
+  await expect(blocks).toHaveCount(0);
+  await undo.click();
+  await expect(blocks).toHaveCount(1);
+  await expect(xInput).toHaveValue("720");
+  await undo.click();
+  await expect(xInput).toHaveValue(originalX);
+  await undo.click();
+  await expect(blocks).toHaveCount(0);
+  await redo.click();
+  await expect(blocks).toHaveCount(1);
+  await redo.click();
+  await expect(xInput).toHaveValue("720");
+  await redo.click();
+  await expect(blocks).toHaveCount(0);
+});
+
+test("REL-009: a long drag is one history item regardless of pointermove count", async ({ page }) => {
+  const canvas = page.getByTestId("editor-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas has no bounding box");
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  await canvas.click({ position: { x: 600, y: 180 } });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  const xInput = inspector.getByRole("spinbutton", { name: "X", exact: true });
+  const originalX = await xInput.inputValue();
+  await page.mouse.move(box.x + 600, box.y + 180);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 780, box.y + 340, { steps: 40 });
+  await page.mouse.up();
+  const movedX = await xInput.inputValue();
+  expect(movedX).not.toBe(originalX);
+
+  await page.getByRole("button", { name: "元に戻す", exact: true }).click();
+  await expect(xInput).toHaveValue(originalX);
+  await page.getByRole("button", { name: "やり直す", exact: true }).click();
+  await expect(xInput).toHaveValue(movedX);
+});
+
+test("REL-015: deterministic editing, command completion, and saving work offline", async ({ page, context }) => {
+  await context.setOffline(true);
+  try {
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+    const commandSearch = page.getByPlaceholder("操作・部品を検索…");
+    await commandSearch.fill("テキストを追加");
+    await commandSearch.press("Enter");
+    await page.getByTestId("editor-canvas").click({ position: { x: 640, y: 180 } });
+    const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+    await expect(inspector.locator(".inspector-title strong")).toHaveText("テキスト");
+    await inspector.getByRole("textbox", { name: "ラベル", exact: true }).fill("offline");
+    await inspector.getByRole("textbox", { name: "ラベル", exact: true }).press("Enter");
+    await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+    const stored = await page.evaluate(() => window.localStorage.getItem("physics-editor-workspace-v1"));
+    expect(stored).toContain("offline");
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test("REL-016: an edit survives an immediate reload before the autosave debounce", async ({ page }) => {
+  const angle = page.getByRole("spinbutton", { name: "角度 °" });
+  await angle.fill("47");
+  await page.reload();
+  await expect(page.getByRole("spinbutton", { name: "角度 °" })).toHaveValue("47");
+});
+
+test("REL-017: a second tab detects an external update and never overwrites it silently", async ({ page, context }) => {
+  await page.waitForTimeout(450);
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
+  const secondPage = await context.newPage();
+  await secondPage.goto("/");
+  await expect(secondPage.getByRole("banner")).toBeVisible();
+  await secondPage.waitForTimeout(450);
+  await expect(secondPage.getByText("保存済み", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
+
+  const firstAngle = page.getByRole("spinbutton", { name: "角度 °" });
+  await firstAngle.fill("37");
+  await firstAngle.press("Enter");
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await expect(secondPage.getByRole("alert")).toContainText("別のタブで図が更新されました");
+
+  const secondAngle = secondPage.getByRole("spinbutton", { name: "角度 °" });
+  await secondAngle.fill("42");
+  await secondAngle.press("Enter");
+  await expect(secondPage.getByText("保存できません", { exact: true })).toBeVisible({ timeout: 2_000 });
+  const persistedAngle = await page.evaluate(() => {
+    const stored = JSON.parse(window.localStorage.getItem("physics-editor-workspace-v1") ?? "{}") as { pages?: Array<{ scene?: { angle?: number } }> };
+    return stored.pages?.[0]?.scene?.angle;
+  });
+  expect(persistedAngle).toBe(37);
+
+  await secondPage.reload();
+  await expect(secondPage.getByRole("spinbutton", { name: "角度 °" })).toHaveValue("37");
+  await secondPage.close();
+});
+
+test("REL-018: successful UI operations create real document data and a real export", async ({ page }) => {
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("テキスト");
+  await page.getByRole("button", { name: "テキスト 注記", exact: true }).click();
+  await page.getByTestId("editor-canvas").click({ position: { x: 620, y: 180 } });
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await inspector.getByRole("textbox", { name: "ラベル", exact: true }).fill("real-document-state");
+  await inspector.getByRole("textbox", { name: "ラベル", exact: true }).press("Enter");
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+
+  const storedElement = await page.evaluate(() => {
+    const stored = JSON.parse(window.localStorage.getItem("physics-editor-workspace-v1") ?? "{}") as { pages?: Array<{ scene?: { elements?: Array<{ label?: string }> } }> };
+    return stored.pages?.[0]?.scene?.elements?.find((element) => element.label === "real-document-state") ?? null;
+  });
+  expect(storedElement).not.toBeNull();
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await dialog.getByLabel("出力形式").selectOption("svg");
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const path = await (await downloadPromise).path();
+  if (!path) throw new Error("Real SVG export is unavailable");
+  expect(await readFile(path, "utf8")).toContain("real-document-state");
 });
 
 test("INS-010/011/012 and REL-010: numeric edit previews, cancels, and commits as one history item", async ({ page }) => {
@@ -195,16 +369,19 @@ test("DSC-008/011: command search executes the selected registered command once"
   await expect(page.getByRole("dialog", { name: "コマンド検索" })).toHaveCount(0);
 });
 
-test("DIR-002/PHY-013: a component can be selected then placed on the canvas", async ({ page }) => {
-  await page.getByRole("button", { name: "テキスト T", exact: true }).click();
+test("DIR-002/PHY-013/REL-013: a component selection places exactly one real component after rerenders", async ({ page }) => {
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("テキスト");
+  await page.getByRole("button", { name: "テキスト 注記", exact: true }).click();
   const canvas = page.getByTestId("editor-canvas");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Editor canvas has no bounding box");
   await canvas.click({ position: { x: box.width * 0.72, y: box.height * 0.2 } });
 
   const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
-  await expect(inspector.getByText("テキスト", { exact: true })).toBeVisible();
-  await expect(inspector.getByRole("textbox", { name: "文字", exact: true })).toHaveValue("注記");
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("テキスト");
+  await expect(inspector.getByRole("textbox", { name: "ラベル", exact: true })).toHaveValue("注記");
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "テキスト 注記", exact: true })).toHaveCount(1);
 });
 
 test("DIR-001: a library component can be dragged onto the canvas", async ({ page }) => {
@@ -786,7 +963,7 @@ test("PHY-008/068: a force supports symbol, magnitude, direction, and reversal",
   await expect(inspector.getByRole("spinbutton", { name: "回転 °", exact: true })).toHaveValue("200");
 });
 
-test("Semantic connection foundation: a string follows two targets and protects references", async ({ page }) => {
+test("PHY-004/022/038 and REL-012: a string follows two targets and dependency deletion round-trips", async ({ page }) => {
   const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
   const canvas = page.getByTestId("editor-canvas");
   const box = await canvas.boundingBox();
@@ -847,6 +1024,12 @@ test("Semantic connection foundation: a string follows two targets and protects 
   await expect(restoredWarning).toContainText("変量 1");
   await restoredWarning.getByRole("button", { name: "依存関係ごと削除", exact: true }).click();
   await page.getByRole("tab", { name: "構造", exact: true }).click();
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "物体 m", exact: true })).toHaveCount(1);
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "糸 T", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "元に戻す", exact: true }).click();
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: /^物体 (M|m)$/ })).toHaveCount(2);
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "糸 T", exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "やり直す", exact: true }).click();
   await expect(page.locator(".catalog-structure").getByRole("button", { name: "物体 m", exact: true })).toHaveCount(1);
   await expect(page.locator(".catalog-structure").getByRole("button", { name: "糸 T", exact: true })).toHaveCount(0);
   await expect(page.getByText("保存中…", { exact: true })).toBeVisible();
