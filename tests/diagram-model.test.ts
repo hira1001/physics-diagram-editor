@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDiagramElement } from "@/app/lib/component-catalog";
 import {
   createConnection,
+  decomposeVectorElement,
   createReferencedElement,
   createVariableForElement,
   contextCandidatesForElement,
@@ -37,6 +38,21 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     const gravity = createReferencedElement("gravity", body, "gravity-a");
     expect(gravity).toMatchObject({ referenceTargetId: "body-a", rotation: 90, x: 100, y: 165 });
     expect(resolveDiagramElement(gravity, [{ ...body, x: 240, y: 80 }, gravity])).toMatchObject({ x: 240, y: 145 });
+  });
+
+  it("decomposes a vector into referenced x/y components with one shared variable", () => {
+    const body = createDiagramElement("block", 100, 100, "body-components");
+    const force = createReferencedElement("force", body, "force-components");
+    force.label = "F";
+    force.rotation = -30;
+    force.width = 120;
+    const variable = createVariableForElement(force, "force-variable");
+    const decomposition = decomposeVectorElement(force, [variable], "force-components-result");
+
+    expect(decomposition?.components[0]).toMatchObject({ id: "force-components-result-x", label: "Fₓ", referenceTargetId: body.id, rotation: 0, width: 103.92304845413264 });
+    expect(decomposition?.components[1]).toMatchObject({ id: "force-components-result-y", label: "Fᵧ", referenceTargetId: body.id, rotation: -90, width: 59.99999999999999 });
+    expect(decomposition?.variables[0].referenceIds).toEqual([force.id, "force-components-result-x", "force-components-result-y"]);
+    expect(decomposition?.constraint).toMatchObject({ kind: "same-variable", targetIds: [force.id, "force-components-result-x", "force-components-result-y"] });
   });
 
   it("reports dependencies and all orphan or self references", () => {

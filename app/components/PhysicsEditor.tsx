@@ -563,6 +563,7 @@ export function PhysicsEditor() {
           zoom={workspace.zoom}
           onCanvasReady={setCanvasNode}
           onCommitSnapshot={commitSnapshot}
+          onCreateFreeBody={addFreeBodyPage}
           onPointerPositionChange={setPointerPosition}
           onSceneChange={updateScene}
           onToolComplete={() => setActiveTool("select")}

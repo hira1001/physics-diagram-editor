@@ -115,7 +115,7 @@ test("REL-014: primary P0 flow produces no browser errors", async ({ page }) => 
   await page.getByRole("button", { name: "出力を閉じる" }).click();
   await page.getByPlaceholder("操作・部品を検索…").fill("自由体図");
   await page.getByRole("button", { name: "自由体図を生成 変量を共有した別タブを作成", exact: true }).click();
-  await expect(page.getByRole("button", { name: "自由体図", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("contentinfo").getByRole("button", { name: "自由体図", exact: true })).toHaveAttribute("aria-current", "page");
 
   expect(errors).toEqual([]);
 });
@@ -351,6 +351,103 @@ test("INS-010/011/012 and REL-010: numeric edit previews, cancels, and commits a
   await expect(undo).toBeDisabled();
   await redo.click();
   await expect(angle).toHaveValue("45");
+});
+
+test("INS-001/003/006: incline HUD exposes its value and exactly three real quick actions", async ({ page }) => {
+  const hud = page.locator(".selection-hud");
+  await expect(hud).toBeVisible();
+  await expect(hud.getByRole("spinbutton", { name: "θ °" })).toHaveValue("30");
+  await expect(hud.getByRole("button")).toHaveCount(3);
+  await expect(hud.getByTitle("左右反転")).toBeEnabled();
+  await expect(hud.getByTitle("角度拘束")).toBeEnabled();
+  await expect(hud.getByTitle("位置をリセット")).toBeEnabled();
+
+  await hud.getByTitle("角度拘束").click();
+  await expect(hud.getByTitle("角度拘束")).toHaveClass(/active/);
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await page.reload();
+  await expect(page.locator(".selection-hud").getByTitle("角度拘束")).toHaveClass(/active/);
+});
+
+test("INS-004: body HUD offers force, contact, and real free-body actions without overflow", async ({ page }) => {
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  const hud = page.locator(".selection-hud");
+  await expect(hud.getByRole("textbox", { name: "質量" })).toHaveValue("m");
+  await expect(hud.getByRole("button")).toHaveCount(3);
+  await expect(hud.getByTitle("力を追加")).toBeEnabled();
+  await expect(hud.getByTitle("接触制約")).toBeEnabled();
+  await hud.getByTitle("自由体図").click();
+  await expect(page.getByRole("contentinfo").getByRole("button", { name: "自由体図", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator(".selection-hud").getByRole("textbox", { name: "質量" })).toHaveValue("m");
+});
+
+test("INS-005/006 and PHY-034: vector HUD reverses and creates editable shared components", async ({ page }) => {
+  const canvas = page.getByTestId("editor-canvas");
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  await canvas.click({ position: { x: 580, y: 360 } });
+  await inspector.getByRole("button", { name: "F", exact: true }).click();
+
+  const hud = page.locator(".selection-hud");
+  await expect(hud.getByRole("button")).toHaveCount(3);
+  await expect(hud.getByTitle("反転")).toBeEnabled();
+  await expect(hud.getByTitle("成分分解")).toBeEnabled();
+  await hud.getByTitle("反転").click();
+  await expect(inspector.getByRole("spinbutton", { name: "回転 °", exact: true })).toHaveValue("180");
+  await hud.getByTitle("成分分解").click();
+  await expect(hud.getByTitle("成分分解済み")).toBeDisabled();
+  await expect(inspector.getByText("型 vector · 参照 3", { exact: true })).toBeVisible();
+
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "一般力 Fₓ", exact: true })).toHaveCount(1);
+  await expect(page.locator(".catalog-structure").getByRole("button", { name: "一般力 Fᵧ", exact: true })).toHaveCount(1);
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  const decomposition = await page.evaluate(() => {
+    const stored = JSON.parse(window.localStorage.getItem("physics-editor-workspace-v1") ?? "{}") as { pages?: Array<{ scene?: { constraints?: Array<{ kind?: string; targetIds?: string[] }> } }> };
+    return stored.pages?.[0]?.scene?.constraints?.find((constraint) => constraint.kind === "same-variable");
+  });
+  expect(decomposition?.targetIds).toHaveLength(3);
+});
+
+test("INS-009/015/017/018: inspector adapts, preserves sections, previews appearance, and closes safely after deletion", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const canvas = page.getByTestId("editor-canvas");
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await inspector.getByRole("button", { name: "制約", exact: true }).click();
+  await expect(inspector.getByRole("button", { name: "制約", exact: true })).toHaveAttribute("aria-expanded", "false");
+
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  await canvas.click({ position: { x: 620, y: 180 } });
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("物体");
+  await expect(inspector.getByRole("button", { name: "寸法・値", exact: true })).toHaveCount(1);
+  await expect(inspector.getByRole("button", { name: "変量", exact: true })).toHaveCount(1);
+  await expect(inspector.getByRole("button", { name: "制約", exact: true })).toHaveAttribute("aria-expanded", "false");
+
+  await inspector.getByRole("button", { name: "外観", exact: true }).click();
+  const before = await canvas.screenshot();
+  const lineWidth = inspector.getByRole("spinbutton", { name: "線幅", exact: true });
+  await lineWidth.fill("6");
+  const preview = await canvas.screenshot();
+  expect(preview.equals(before)).toBe(false);
+  await lineWidth.press("Enter");
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await dialog.getByLabel("出力形式").selectOption("svg");
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const path = await (await downloadPromise).path();
+  if (!path) throw new Error("Appearance preview SVG is unavailable");
+  expect(await readFile(path, "utf8")).toContain('stroke-width="6"');
+
+  await inspector.getByRole("button", { name: "削除", exact: true }).click();
+  await expect(page.locator(".selection-hud")).toHaveCount(0);
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("選択なし");
+  expect(errors).toEqual([]);
 });
 
 test("DSC-008/011: command search executes the selected registered command once", async ({ page }) => {

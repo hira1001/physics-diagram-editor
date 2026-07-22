@@ -131,6 +131,44 @@ export function createVariableForElement(element: DiagramElement, id = globalThi
   };
 }
 
+export function decomposeVectorElement(element: DiagramElement, variables: readonly Variable[], idPrefix = globalThis.crypto?.randomUUID?.() ?? `components-${Date.now()}`) {
+  if (!isVectorElement(element.kind)) return null;
+  const radians = element.rotation * Math.PI / 180;
+  const horizontal = createDiagramElement(element.kind, element.x, element.y, `${idPrefix}-x`);
+  const vertical = createDiagramElement(element.kind, element.x, element.y, `${idPrefix}-y`);
+  horizontal.fontSize = element.fontSize;
+  horizontal.label = `${element.label || "F"}ₓ`;
+  horizontal.lineWidth = element.lineWidth;
+  horizontal.referenceTargetId = element.referenceTargetId;
+  horizontal.rotation = Math.cos(radians) >= 0 ? 0 : 180;
+  horizontal.width = Math.max(8, Math.abs(element.width * Math.cos(radians)));
+  vertical.fontSize = element.fontSize;
+  vertical.label = `${element.label || "F"}ᵧ`;
+  vertical.lineWidth = element.lineWidth;
+  vertical.referenceTargetId = element.referenceTargetId;
+  vertical.rotation = Math.sin(radians) >= 0 ? 90 : -90;
+  vertical.width = Math.max(8, Math.abs(element.width * Math.sin(radians)));
+
+  const existingVariable = variables.find((variable) => variable.referenceIds.includes(element.id));
+  const nextVariables = existingVariable
+    ? variables.map((variable) => variable.id === existingVariable.id
+      ? { ...variable, referenceIds: [...new Set([...variable.referenceIds, horizontal.id, vertical.id])] }
+      : variable)
+    : [...variables, { ...createVariableForElement(element, `${idPrefix}-variable`), referenceIds: [element.id, horizontal.id, vertical.id] }];
+  return {
+    components: [horizontal, vertical] as const,
+    constraint: {
+      conflict: null,
+      enabled: true,
+      id: `${idPrefix}-same-variable`,
+      kind: "same-variable" as const,
+      strength: "required" as const,
+      targetIds: [element.id, horizontal.id, vertical.id],
+    },
+    variables: nextVariables,
+  };
+}
+
 export function findElementDependencies(elementId: string, elements: readonly DiagramElement[], variables: readonly Variable[], constraints: readonly Constraint[]) {
   return {
     connections: elements.filter((item) => item.startTargetId === elementId || item.endTargetId === elementId || item.referenceTargetId === elementId),

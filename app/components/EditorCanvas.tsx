@@ -8,7 +8,7 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
-import { findElementDependencies, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
+import { decomposeVectorElement, findElementDependencies, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 
 interface EditorCanvasProps {
   activeTool: ToolId;
@@ -17,6 +17,7 @@ interface EditorCanvasProps {
   zoom: number;
   onCanvasReady: (canvas: HTMLCanvasElement | null) => void;
   onCommitSnapshot: (scene: SceneState) => void;
+  onCreateFreeBody: () => void;
   onPointerPositionChange: (point: Point) => void;
   onSceneChange: (patch: Partial<SceneState>, record?: boolean) => void;
   onToolComplete: () => void;
@@ -426,6 +427,7 @@ export function EditorCanvas({
   zoom,
   onCanvasReady,
   onCommitSnapshot,
+  onCreateFreeBody,
   onPointerPositionChange,
   onSceneChange,
   onToolComplete,
@@ -751,6 +753,26 @@ export function EditorCanvas({
         return Boolean(dependencies.connections.length || dependencies.variables.length || dependencies.constraints.length);
       })()
     : false;
+  const angleConstraintActive = scene.constraints.some((constraint) => constraint.id === "constraint-angle-fixed" && constraint.enabled);
+  const componentConstraint = selectedElement
+    ? scene.constraints.find((constraint) => constraint.kind === "same-variable" && constraint.targetIds[0] === selectedElement.id && constraint.targetIds.length === 3)
+    : null;
+  const toggleAngleConstraint = () => onSceneChange({
+    constraints: angleConstraintActive
+      ? scene.constraints.filter((constraint) => constraint.id !== "constraint-angle-fixed")
+      : [...scene.constraints, { conflict: null, enabled: true, id: "constraint-angle-fixed", kind: "equal-angle", strength: "required", targetIds: ["incline", "angle"] }],
+  });
+  const decomposeSelectedVector = () => {
+    if (!selectedElement || !isVectorElement(selectedElement.kind) || componentConstraint) return;
+    const decomposition = decomposeVectorElement(selectedElement, scene.variables);
+    if (!decomposition) return;
+    onSceneChange({
+      constraints: [...scene.constraints, decomposition.constraint],
+      elements: [...scene.elements, ...decomposition.components],
+      selectedId: `element:${selectedElement.id}`,
+      variables: decomposition.variables,
+    });
+  };
 
   return (
     <main className={`canvas-workspace tool-${activeTool}`} ref={wrapperRef}>
@@ -799,12 +821,28 @@ export function EditorCanvas({
             <span className="hud-name">{catalogEntry(selectedElement.kind).name}{selectedElement.label ? ` · ${selectedElement.label}` : ""}</span>
           ) : <span className="hud-name">{scene.selectedId === "axis" ? "座標軸" : scene.selectedId === "spring" ? "ばね" : "滑車"}</span>}
           <span className="hud-divider" />
-          {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle") ? <button type="button" title="左右反転" onClick={() => onSceneChange({ flipped: !scene.flipped, blockPosition: 1 - scene.blockPosition })}><FlipHorizontal2 size={14} /></button> : null}
-          {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle" || scene.selectedId === "block" || scene.selectedId === "mass-label") ? <button className={scene.contactConstraint ? "active" : ""} type="button" title="接触制約" onClick={() => onSceneChange({ contactConstraint: !scene.contactConstraint, ...(!scene.contactConstraint ? { blockOffsetX: 0, blockOffsetY: 0 } : {}) })}><Link2 size={14} /></button> : null}
-          <button type="button" title="位置をリセット" onClick={() => onSceneChange(pageKind === "freebody" ? { diagramOffsetX: 0, diagramOffsetY: 0 } : scene.selectedId === "angle" ? { angleLabelOffsetX: 0, angleLabelOffsetY: 0 } : scene.selectedId === "mass-label" || scene.selectedId === "block" ? { massLabelOffsetX: 0, massLabelOffsetY: 0 } : scene.selectedId === "text" ? { annotationX: 0.5, annotationY: 0.2 } : { diagramOffsetX: 0, diagramOffsetY: 0 })}><RotateCcw size={14} /></button>
-          {scene.selectedId === "text" ? <button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button> : scene.selectedId === "block" || scene.selectedId === "mass-label" ? <button type="button" title="力を追加" onClick={() => onSceneChange({ showGravity: true, showNormal: true, ...(scene.surfaceRoughness === "rough" ? { showFriction: true } : {}) })}><MoveUpRight size={14} /></button> : null}
-          {selectedElement ? <button className={selectedElement.locked ? "active" : ""} type="button" title={selectedElement.locked ? "ロック解除" : "ロック"} onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, locked: !item.locked } : item) })}><Link2 size={14} /></button> : null}
-          {selectedElement ? <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button> : null}
+          {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle") ? <>
+            <button type="button" title="左右反転" onClick={() => onSceneChange({ flipped: !scene.flipped, blockPosition: 1 - scene.blockPosition })}><FlipHorizontal2 size={14} /></button>
+            <button className={angleConstraintActive ? "active" : ""} type="button" title="角度拘束" onClick={toggleAngleConstraint}><Link2 size={14} /></button>
+            <button type="button" title="位置をリセット" onClick={() => onSceneChange(scene.selectedId === "angle" ? { angleLabelOffsetX: 0, angleLabelOffsetY: 0 } : { diagramOffsetX: 0, diagramOffsetY: 0 })}><RotateCcw size={14} /></button>
+          </> : null}
+          {scene.selectedId === "block" || scene.selectedId === "mass-label" ? <>
+            <button type="button" title="力を追加" onClick={() => onSceneChange({ showGravity: true, showNormal: true, ...(scene.surfaceRoughness === "rough" ? { showFriction: true } : {}) })}><MoveUpRight size={14} /></button>
+            {pageKind !== "freebody" ? <button className={scene.contactConstraint ? "active" : ""} type="button" title="接触制約" onClick={() => onSceneChange({ contactConstraint: !scene.contactConstraint, ...(!scene.contactConstraint ? { blockOffsetX: 0, blockOffsetY: 0 } : {}) })}><Link2 size={14} /></button> : <button type="button" title="位置をリセット" onClick={() => onSceneChange({ diagramOffsetX: 0, diagramOffsetY: 0 })}><RotateCcw size={14} /></button>}
+            <button type="button" title="自由体図" onClick={onCreateFreeBody}><MoveUpRight size={14} /></button>
+          </> : null}
+          {scene.selectedId === "text" ? <><button type="button" title="位置をリセット" onClick={() => onSceneChange({ annotationX: 0.5, annotationY: 0.2 })}><RotateCcw size={14} /></button><button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button></> : null}
+          {selectedElement && isVectorElement(selectedElement.kind) ? <>
+            <button type="button" title="反転" onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, rotation: item.rotation + 180 } : item) })}><FlipHorizontal2 size={14} /></button>
+            <button disabled={Boolean(componentConstraint)} type="button" title={componentConstraint ? "成分分解済み" : "成分分解"} onClick={decomposeSelectedVector}><MoveUpRight size={14} /></button>
+            <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button>
+          </> : null}
+          {selectedElement && !isVectorElement(selectedElement.kind) ? <>
+            <button type="button" title="位置をリセット" onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, x: 500, y: 325 } : item) })}><RotateCcw size={14} /></button>
+            <button className={selectedElement.locked ? "active" : ""} type="button" title={selectedElement.locked ? "ロック解除" : "ロック"} onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, locked: !item.locked } : item) })}><Link2 size={14} /></button>
+            <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button>
+          </> : null}
+          {!selectedElement && scene.selectedId && !["incline", "angle", "block", "mass-label", "text"].includes(scene.selectedId) ? <button type="button" title="位置をリセット" onClick={() => onSceneChange(pageKind === "freebody" ? { diagramOffsetX: 0, diagramOffsetY: 0 } : { forceScale: 1 })}><RotateCcw size={14} /></button> : null}
         </div>
       ) : null}
 
