@@ -122,6 +122,12 @@ export function LibraryPanel({
                     className={`component-row ${activeTool === item.id ? "active" : ""}`}
                     key={item.id}
                     type="button"
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "copy";
+                      event.dataTransfer.setData("application/x-physics-tool", item.id);
+                      onToolPick(item.id);
+                    }}
                     onClick={() => onToolPick(item.id)}
                     title={`${item.name} — ${item.meta}`}
                   >
@@ -165,7 +171,7 @@ export function LibraryPanel({
                   key={item.id}
                   style={{ paddingLeft: `${12 + item.depth * 18}px` }}
                 >
-                  <button className="structure-select" type="button" onClick={() => onSelect(item.id)}>
+                  <button className="structure-select" type="button" aria-label={item.id === "incline" ? `${item.name} θ = ${scene.angle}°` : item.name} onClick={() => onSelect(item.id)}>
                     {item.depth === 0 ? <ChevronRight size={12} /> : <span className="tree-elbow">└</span>}
                     <MousePointer2 size={13} />
                     <span>{item.id === "incline" ? `${item.name}  θ = ${scene.angle}°` : item.name}</span>

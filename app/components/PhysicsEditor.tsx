@@ -386,7 +386,7 @@ export function PhysicsEditor() {
           onToolComplete={() => setActiveTool("select")}
         />
 
-        {workspace.rightPanelVisible ? <InspectorPanel pageKind={activePage.kind} scene={activePage.scene} onCreateFreeBody={addFreeBodyPage} onSceneChange={updateScene} /> : null}
+        {workspace.rightPanelVisible ? <InspectorPanel pageKind={activePage.kind} scene={activePage.scene} onCreateFreeBody={addFreeBodyPage} onCommitSnapshot={commitSnapshot} onSceneChange={updateScene} /> : null}
       </div>
 
       <footer className="statusbar">

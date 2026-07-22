@@ -10,14 +10,15 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { NumericInput } from "@/app/components/NumericInput";
+import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
 import type { PageKind, SceneState, SelectionId } from "@/app/lib/editor-types";
 
 interface InspectorPanelProps {
   scene: SceneState;
   pageKind: PageKind;
   onCreateFreeBody: () => void;
-  onSceneChange: (patch: Partial<SceneState>) => void;
+  onCommitSnapshot: (scene: SceneState) => void;
+  onSceneChange: (patch: Partial<SceneState>, record?: boolean) => void;
 }
 
 type SectionKey = "dimensions" | "quick" | "variables" | "constraints" | "appearance";
@@ -36,7 +37,7 @@ const selectionNames: Record<Exclude<SelectionId, null>, string> = {
   text: "テキスト",
 };
 
-export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onSceneChange }: InspectorPanelProps) {
+export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnapshot, onSceneChange }: InspectorPanelProps) {
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     dimensions: true,
     quick: true,
@@ -63,35 +64,35 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onSceneChang
         <button aria-expanded={openSections.dimensions} className="inspector-heading" type="button" onClick={() => toggleSection("dimensions")}><span>寸法・値</span><ChevronDown size={14} /></button>
         {openSections.dimensions ? <div className="inspector-content">
           {isIncline || isAngleLabel ? <>
-            <label className="property-row"><span>角度</span><div className="unit-input"><NumericInput min="5" max="75" value={scene.angle} onValueChange={(angle) => onSceneChange({ angle })} /><b>°</b></div></label>
+            <label className="property-row"><span>角度</span><div className="unit-input"><SceneNumericInput min="5" max="75" property="angle" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></div></label>
             <input className="angle-range" type="range" min="5" max="75" value={scene.angle} onChange={(event) => onSceneChange({ angle: Number(event.target.value) })} aria-label="斜面の角度" />
             {isIncline ? <>
-              <label className="property-row"><span>図 X</span><NumericInput value={Math.round(scene.diagramOffsetX)} onValueChange={(diagramOffsetX) => onSceneChange({ diagramOffsetX })} /></label>
-              <label className="property-row"><span>図 Y</span><NumericInput value={Math.round(scene.diagramOffsetY)} onValueChange={(diagramOffsetY) => onSceneChange({ diagramOffsetY })} /></label>
+              <label className="property-row"><span>図 X</span><SceneNumericInput property="diagramOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+              <label className="property-row"><span>図 Y</span><SceneNumericInput property="diagramOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
             </> : <>
-              <label className="property-row"><span>文字 X</span><NumericInput value={Math.round(scene.angleLabelOffsetX)} onValueChange={(angleLabelOffsetX) => onSceneChange({ angleLabelOffsetX })} /></label>
-              <label className="property-row"><span>文字 Y</span><NumericInput value={Math.round(scene.angleLabelOffsetY)} onValueChange={(angleLabelOffsetY) => onSceneChange({ angleLabelOffsetY })} /></label>
+              <label className="property-row"><span>文字 X</span><SceneNumericInput property="angleLabelOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+              <label className="property-row"><span>文字 Y</span><SceneNumericInput property="angleLabelOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
             </>}
           </> : null}
           {isBlock ? <>
-            <label className="property-row"><span>ラベル</span><input value={scene.massLabel} onChange={(event) => onSceneChange({ massLabel: event.target.value })} /></label>
-            {!isFreeBody ? <label className="property-row"><span>位置</span><div className="unit-input"><NumericInput min="12" max="88" value={Math.round(scene.blockPosition * 100)} onValueChange={(value) => onSceneChange({ blockPosition: value / 100 })} /><b>%</b></div></label> : null}
-            <label className="property-row"><span>文字 X</span><NumericInput value={Math.round(scene.massLabelOffsetX)} onValueChange={(massLabelOffsetX) => onSceneChange({ massLabelOffsetX })} /></label>
-            <label className="property-row"><span>文字 Y</span><NumericInput value={Math.round(scene.massLabelOffsetY)} onValueChange={(massLabelOffsetY) => onSceneChange({ massLabelOffsetY })} /></label>
+            <label className="property-row"><span>ラベル</span><SceneTextInput property="massLabel" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            {!isFreeBody ? <label className="property-row"><span>位置</span><div className="unit-input"><SceneNumericInput min="12" max="88" property="blockPosition" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label> : null}
+            <label className="property-row"><span>文字 X</span><SceneNumericInput property="massLabelOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            <label className="property-row"><span>文字 Y</span><SceneNumericInput property="massLabelOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
             {isFreeBody ? <>
-              <label className="property-row"><span>図 X</span><NumericInput value={Math.round(scene.diagramOffsetX)} onValueChange={(diagramOffsetX) => onSceneChange({ diagramOffsetX })} /></label>
-              <label className="property-row"><span>図 Y</span><NumericInput value={Math.round(scene.diagramOffsetY)} onValueChange={(diagramOffsetY) => onSceneChange({ diagramOffsetY })} /></label>
+              <label className="property-row"><span>図 X</span><SceneNumericInput property="diagramOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+              <label className="property-row"><span>図 Y</span><SceneNumericInput property="diagramOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
             </> : !scene.contactConstraint ? <>
-              <label className="property-row"><span>物体 X</span><NumericInput value={Math.round(scene.blockOffsetX)} onValueChange={(blockOffsetX) => onSceneChange({ blockOffsetX })} /></label>
-              <label className="property-row"><span>物体 Y</span><NumericInput value={Math.round(scene.blockOffsetY)} onValueChange={(blockOffsetY) => onSceneChange({ blockOffsetY })} /></label>
+              <label className="property-row"><span>物体 X</span><SceneNumericInput property="blockOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+              <label className="property-row"><span>物体 Y</span><SceneNumericInput property="blockOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
             </> : null}
           </> : null}
           {isText ? <>
-            <label className="property-row"><span>文字</span><input value={scene.annotationText} onChange={(event) => onSceneChange({ annotationText: event.target.value })} /></label>
-            <label className="property-row"><span>X</span><div className="unit-input"><NumericInput min="4" max="96" value={Math.round(scene.annotationX * 100)} onValueChange={(value) => onSceneChange({ annotationX: value / 100 })} /><b>%</b></div></label>
-            <label className="property-row"><span>Y</span><div className="unit-input"><NumericInput min="4" max="96" value={Math.round(scene.annotationY * 100)} onValueChange={(value) => onSceneChange({ annotationY: value / 100 })} /><b>%</b></div></label>
+            <label className="property-row"><span>文字</span><SceneTextInput property="annotationText" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            <label className="property-row"><span>X</span><div className="unit-input"><SceneNumericInput min="4" max="96" property="annotationX" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label>
+            <label className="property-row"><span>Y</span><div className="unit-input"><SceneNumericInput min="4" max="96" property="annotationY" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label>
           </> : null}
-          {!isIncline && !isAngleLabel && !isBlock && !isText ? <label className="property-row"><span>ベクトル</span><div className="unit-input"><NumericInput min="50" max="180" value={Math.round(scene.forceScale * 100)} onValueChange={(value) => onSceneChange({ forceScale: value / 100 })} /><b>%</b></div></label> : null}
+          {!isIncline && !isAngleLabel && !isBlock && !isText ? <label className="property-row"><span>ベクトル</span><div className="unit-input"><SceneNumericInput min="50" max="180" property="forceScale" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label> : null}
         </div> : null}
       </section>
 

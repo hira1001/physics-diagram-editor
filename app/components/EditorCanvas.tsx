@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlipHorizontal2, Link2, MoveUpRight, RotateCcw, Trash2 } from "lucide-react";
-import { NumericInput } from "@/app/components/NumericInput";
+import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
 import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor-types";
 
 interface EditorCanvasProps {
@@ -475,6 +475,34 @@ export function EditorCanvas({
     else if (hit.startsWith("force-")) setDragMode("force");
   }, [activeTool, canvasPoint, geometry, onPointerPositionChange, onSceneChange, onToolComplete, pageKind, scene]);
 
+  const handleDrop = useCallback((event: React.DragEvent<HTMLCanvasElement>) => {
+    event.preventDefault();
+    const droppedTool = event.dataTransfer.getData("application/x-physics-tool") as ToolId;
+    const validTools: ToolId[] = ["incline", "block", "force", "angle", "axis", "spring", "pulley", "text"];
+    if (!validTools.includes(droppedTool)) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const patch: Partial<SceneState> = { selectedId: droppedTool === "force" ? "force-gravity" : droppedTool as SelectionId };
+    if (droppedTool === "angle") patch.showAngle = true;
+    if (droppedTool === "axis") patch.showAxis = true;
+    if (droppedTool === "force") Object.assign(patch, { showGravity: true, showNormal: true, showFriction: true });
+    if (droppedTool === "spring") patch.showSpring = true;
+    if (droppedTool === "pulley") patch.showPulley = true;
+    if (droppedTool === "text") {
+      patch.showAnnotation = true;
+      patch.selectedId = "text";
+      patch.annotationX = clamp((point.x - geometry.artboard.x) / geometry.artboard.width, 0.04, 0.96);
+      patch.annotationY = clamp((point.y - geometry.artboard.y) / geometry.artboard.height, 0.04, 0.96);
+    }
+    if (droppedTool === "block") {
+      const dx = geometry.end.x - geometry.start.x;
+      const dy = geometry.end.y - geometry.start.y;
+      patch.blockPosition = clamp(((point.x - geometry.start.x) * dx + (point.y - geometry.start.y) * dy) / (dx * dx + dy * dy), 0.12, 0.88);
+    }
+    onSceneChange(patch);
+    onToolComplete();
+  }, [geometry, onSceneChange, onToolComplete]);
+
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
     const point = canvasPoint(event);
     setPointer(point);
@@ -607,6 +635,8 @@ export function EditorCanvas({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onPointerLeave={() => { if (!dragMode) setSuggestion(null); }}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
         aria-label="物理図の作図キャンバス"
       />
 
@@ -629,21 +659,19 @@ export function EditorCanvas({
       {hudPosition && !dragMode ? (
         <div className="selection-hud" style={hudPosition}>
           {scene.selectedId === "incline" || scene.selectedId === "angle" ? (
-            <label><span>θ</span><NumericInput min="5" max="75" value={scene.angle} onValueChange={(angle) => onSceneChange({ angle })} /><b>°</b></label>
+            <label><span>θ</span><SceneNumericInput min="5" max="75" property="angle" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></label>
           ) : scene.selectedId === "block" || scene.selectedId === "mass-label" ? (
-            <label><span>質量</span><input value={scene.massLabel} onChange={(event) => onSceneChange({ massLabel: event.target.value })} /></label>
+            <label><span>質量</span><SceneTextInput property="massLabel" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
           ) : scene.selectedId === "text" ? (
-            <label><span>文字</span><input value={scene.annotationText} onChange={(event) => onSceneChange({ annotationText: event.target.value })} /></label>
+            <label><span>文字</span><SceneTextInput property="annotationText" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
           ) : scene.selectedId?.startsWith("force-") ? (
-            <label><span>倍率</span><NumericInput min="50" max="180" value={Math.round(scene.forceScale * 100)} onValueChange={(value) => onSceneChange({ forceScale: value / 100 })} /><b>%</b></label>
+            <label><span>倍率</span><SceneNumericInput min="50" max="180" property="forceScale" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></label>
           ) : <span className="hud-name">{scene.selectedId === "axis" ? "座標軸" : scene.selectedId === "spring" ? "ばね" : "滑車"}</span>}
           <span className="hud-divider" />
-          {pageKind !== "freebody" && scene.selectedId !== "text" ? <>
-            <button type="button" title="左右反転" onClick={() => onSceneChange({ flipped: !scene.flipped, blockPosition: 1 - scene.blockPosition })}><FlipHorizontal2 size={14} /></button>
-            <button className={scene.contactConstraint ? "active" : ""} type="button" title="接触制約" onClick={() => onSceneChange({ contactConstraint: !scene.contactConstraint, ...(!scene.contactConstraint ? { blockOffsetX: 0, blockOffsetY: 0 } : {}) })}><Link2 size={14} /></button>
-          </> : null}
+          {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle") ? <button type="button" title="左右反転" onClick={() => onSceneChange({ flipped: !scene.flipped, blockPosition: 1 - scene.blockPosition })}><FlipHorizontal2 size={14} /></button> : null}
+          {pageKind !== "freebody" && (scene.selectedId === "incline" || scene.selectedId === "angle" || scene.selectedId === "block" || scene.selectedId === "mass-label") ? <button className={scene.contactConstraint ? "active" : ""} type="button" title="接触制約" onClick={() => onSceneChange({ contactConstraint: !scene.contactConstraint, ...(!scene.contactConstraint ? { blockOffsetX: 0, blockOffsetY: 0 } : {}) })}><Link2 size={14} /></button> : null}
           <button type="button" title="位置をリセット" onClick={() => onSceneChange(pageKind === "freebody" ? { diagramOffsetX: 0, diagramOffsetY: 0 } : scene.selectedId === "angle" ? { angleLabelOffsetX: 0, angleLabelOffsetY: 0 } : scene.selectedId === "mass-label" || scene.selectedId === "block" ? { massLabelOffsetX: 0, massLabelOffsetY: 0 } : scene.selectedId === "text" ? { annotationX: 0.5, annotationY: 0.2 } : { diagramOffsetX: 0, diagramOffsetY: 0 })}><RotateCcw size={14} /></button>
-          {scene.selectedId === "text" ? <button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button> : <button type="button" title="力を追加" onClick={() => onSceneChange({ showGravity: true, showNormal: true, showFriction: true })}><MoveUpRight size={14} /></button>}
+          {scene.selectedId === "text" ? <button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button> : scene.selectedId === "block" || scene.selectedId === "mass-label" ? <button type="button" title="力を追加" onClick={() => onSceneChange({ showGravity: true, showNormal: true, showFriction: true })}><MoveUpRight size={14} /></button> : null}
         </div>
       ) : null}
 

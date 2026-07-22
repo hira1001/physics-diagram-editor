@@ -16,13 +16,17 @@
 | `REL-004`, `REL-005` | Unit、Chrome、Firefox、WebKit | 合格 | 旧形式移行、不正JSONからの安全復旧 |
 | `REL-006` | Chrome、Firefox、WebKit | 合格 | QuotaExceededError時の保存失敗表示E2E |
 | `PHY-039`, `ARC-012`（保存入力範囲） | Unit | 合格 | 非有限値・範囲外値の正規化、ページID重複回避 |
+| `INS-010`, `INS-011`, `INS-012`, `REL-010` | Chrome、Firefox、WebKit | 合格 | 数値のライブプレビュー、Esc取消、Enter確定、1回Undo/Redo |
+| `DSC-008`, `DSC-011` | Chrome、Firefox、WebKit | 合格 | Cmd/Ctrl+K、検索、Enterによる登録コマンド1回実行 |
+| `DIR-001`, `DIR-002`, `PHY-013` | Chrome、Firefox、WebKit | 合格 | テキスト部品のドラッグ配置、クリック配置、実体編集 |
+| `SHL-010`, `SHL-013` | Chrome、Firefox、WebKit | 合格 | 構造ツリーの厳密選択、自由体図/追加図タブ切替 |
 
 ### コマンド結果
 
 | コマンド群 | 結果 |
 |---|---|
 | Unit | 2ファイル、9テスト合格 |
-| E2E | 3ブラウザ、30テスト合格 |
+| E2E | 3ブラウザ、45テスト合格 |
 | TypeScript | 合格 |
 | ESLint | 合格 |
 | Production build / server render | 合格 |

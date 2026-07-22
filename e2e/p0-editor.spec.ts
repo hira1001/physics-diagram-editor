@@ -151,3 +151,77 @@ test("REL-006: storage failure never claims the document was saved", async ({ pa
   await expect(page.getByText("保存できません", { exact: true })).toBeVisible({ timeout: 2_000 });
   await expect(page.getByRole("alert")).toContainText("端末への保存に失敗しました");
 });
+
+test("INS-010/011/012 and REL-010: numeric edit previews, cancels, and commits as one history item", async ({ page }) => {
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  const angle = inspector.getByRole("spinbutton", { name: "角度 °" });
+  const undo = page.getByRole("button", { name: "元に戻す", exact: true });
+  const redo = page.getByRole("button", { name: "やり直す", exact: true });
+
+  await angle.fill("44");
+  await expect(inspector.getByRole("button", { name: "θ 斜面角 44°", exact: true })).toBeVisible();
+  await angle.press("Escape");
+  await expect(angle).toHaveValue("30");
+  await expect(undo).toBeDisabled();
+
+  await angle.fill("45");
+  await expect(inspector.getByRole("button", { name: "θ 斜面角 45°", exact: true })).toBeVisible();
+  await angle.press("Enter");
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect(angle).toHaveValue("30");
+  await expect(undo).toBeDisabled();
+  await redo.click();
+  await expect(angle).toHaveValue("45");
+});
+
+test("DSC-008/011: command search executes the selected registered command once", async ({ page }) => {
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  const angle = inspector.getByRole("spinbutton", { name: "角度 °" });
+  await angle.fill("42");
+  await angle.press("Enter");
+
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+  const search = page.getByPlaceholder("操作・部品を検索…");
+  await search.fill("斜面を30");
+  await expect(page.getByRole("button", { name: "斜面を30°に設定 選択中の斜面の角度を固定", exact: true })).toBeVisible();
+  await search.press("Enter");
+
+  await expect(angle).toHaveValue("30");
+  await expect(page.getByRole("dialog", { name: "コマンド検索" })).toHaveCount(0);
+});
+
+test("DIR-002/PHY-013: a component can be selected then placed on the canvas", async ({ page }) => {
+  await page.getByRole("button", { name: "テキスト T", exact: true }).click();
+  const canvas = page.getByTestId("editor-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas has no bounding box");
+  await canvas.click({ position: { x: box.width * 0.72, y: box.height * 0.2 } });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await expect(inspector.getByText("テキスト", { exact: true })).toBeVisible();
+  await expect(inspector.getByRole("textbox", { name: "文字", exact: true })).toHaveValue("注記");
+});
+
+test("DIR-001: a library component can be dragged onto the canvas", async ({ page }) => {
+  const source = page.getByRole("button", { name: "テキスト T", exact: true });
+  const canvas = page.getByTestId("editor-canvas");
+  await source.dragTo(canvas, { targetPosition: { x: 620, y: 180 } });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await expect(inspector.getByText("テキスト", { exact: true })).toBeVisible();
+  await expect(inspector.getByRole("textbox", { name: "文字", exact: true })).toHaveValue("注記");
+});
+
+test("SHL-010/013: structure selection and diagram tabs select exact targets", async ({ page }) => {
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  await page.getByRole("button", { name: "垂直抗力 N", exact: true }).click();
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await expect(inspector.getByText("垂直抗力", { exact: true })).toBeVisible();
+
+  const statusbar = page.getByRole("contentinfo");
+  await statusbar.getByRole("button", { name: "自由体図", exact: true }).click();
+  await expect(statusbar.getByRole("button", { name: "自由体図", exact: true })).toHaveAttribute("aria-current", "page");
+  await statusbar.getByRole("button", { name: "図を追加", exact: true }).click();
+  await expect(statusbar.getByRole("button", { name: "図3", exact: true })).toHaveAttribute("aria-current", "page");
+});
