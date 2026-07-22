@@ -3,8 +3,9 @@ import { createGeometry } from "../app/components/EditorCanvas";
 import { INITIAL_SCENE } from "../app/lib/editor-types";
 
 async function openCleanEditor(page: Page) {
-  await page.addInitScript(() => window.localStorage.clear());
   await page.goto("/");
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload();
   await expect(page.getByRole("banner")).toBeVisible();
   const skip = page.getByRole("button", { name: "スキップ", exact: true });
   if (await skip.isVisible()) await skip.click();
@@ -94,4 +95,59 @@ test("REL-014: primary P0 flow produces no browser errors", async ({ page }) => 
   await expect(page.getByRole("button", { name: "自由体図", exact: true })).toHaveAttribute("aria-current", "page");
 
   expect(errors).toEqual([]);
+});
+
+test("SHL-004/REL-001/002: save status is truthful and the edited document restores", async ({ page }) => {
+  const angle = page.getByRole("spinbutton", { name: "角度 °" });
+  await angle.fill("36");
+  await expect(page.getByText("保存中…", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+
+  await page.reload();
+  await expect(page.getByRole("spinbutton", { name: "角度 °" })).toHaveValue("36");
+});
+
+test("REL-003: density, panels, and zoom restore after reload", async ({ page }) => {
+  await page.getByRole("button", { name: "メニュー", exact: true }).click();
+  await page.getByLabel("UI密度").selectOption("compact");
+  await page.getByRole("button", { name: "拡大", exact: true }).click();
+  await expect(page.locator(".physics-editor")).toHaveClass(/density-compact/);
+  await expect(page.getByText("110%", { exact: true })).toBeVisible();
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+
+  await page.reload();
+  await expect(page.locator(".physics-editor")).toHaveClass(/density-compact/);
+  await expect(page.getByText("110%", { exact: true })).toBeVisible();
+});
+
+test("REL-004/005: legacy and corrupt saved data recover safely", async ({ page }) => {
+  await page.evaluate(() => {
+    window.localStorage.setItem("physics-editor-workspace-v1", JSON.stringify({
+      density: "standard",
+      leftPanelVisible: true,
+      rightPanelVisible: true,
+      activePageId: "legacy",
+      pages: [{ id: "legacy", title: "旧図", kind: "incline", scene: { angle: 35, massLabel: "M" } }],
+    }));
+  });
+  await page.reload();
+  await expect(page.getByText("保存データを最新版へ更新しました", { exact: true })).toBeVisible();
+  await expect(page.getByRole("spinbutton", { name: "角度 °" })).toHaveValue("35");
+
+  await page.evaluate(() => window.localStorage.setItem("physics-editor-workspace-v1", "{broken-json"));
+  await page.reload();
+  await expect(page.getByText("保存データを読み取れなかったため、安全な新規図で復旧しました", { exact: true })).toBeVisible();
+  await expect(page.getByRole("spinbutton", { name: "角度 °" })).toHaveValue("30");
+});
+
+test("REL-006: storage failure never claims the document was saved", async ({ page }) => {
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    };
+  });
+  await page.getByRole("spinbutton", { name: "角度 °" }).fill("41");
+
+  await expect(page.getByText("保存できません", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await expect(page.getByRole("alert")).toContainText("端末への保存に失敗しました");
 });

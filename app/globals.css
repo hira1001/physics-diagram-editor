@@ -151,6 +151,53 @@ select:focus-visible {
   background: var(--green);
 }
 
+.save-state.saving > span {
+  background: #c68b28;
+}
+
+.save-state.error {
+  color: #a33a32;
+}
+
+.save-state.error > span {
+  background: #c74c42;
+}
+
+.system-notice {
+  position: fixed;
+  z-index: 80;
+  right: 18px;
+  bottom: 42px;
+  display: flex;
+  max-width: 420px;
+  min-height: 36px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid #b9cde6;
+  border-radius: 6px;
+  color: var(--text);
+  background: #f4f8fd;
+  box-shadow: var(--shadow);
+}
+
+.system-notice.error {
+  border-color: #e1b1ac;
+  background: #fff6f5;
+}
+
+.system-notice button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
 .history-actions {
   display: flex;
   align-items: center;

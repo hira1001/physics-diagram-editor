@@ -71,9 +71,13 @@ export interface DiagramPage {
 }
 
 export interface WorkspaceState {
+  schemaVersion: 2;
   density: UiDensity;
+  leftPanelWidth: number;
   leftPanelVisible: boolean;
+  rightPanelWidth: number;
   rightPanelVisible: boolean;
+  zoom: number;
   activePageId: string;
   pages: DiagramPage[];
 }
@@ -113,9 +117,13 @@ export const INITIAL_SCENE: SceneState = {
 };
 
 export const INITIAL_WORKSPACE: WorkspaceState = {
+  schemaVersion: 2,
   density: "standard",
+  leftPanelWidth: 244,
   leftPanelVisible: true,
+  rightPanelWidth: 300,
   rightPanelVisible: true,
+  zoom: 100,
   activePageId: "page-1",
   pages: [
     {

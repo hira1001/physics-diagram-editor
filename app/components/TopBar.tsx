@@ -20,6 +20,7 @@ interface TopBarProps {
   onMenu: () => void;
   onRedo: () => void;
   onUndo: () => void;
+  saveStatus: "error" | "saved" | "saving";
 }
 
 export function TopBar({
@@ -33,6 +34,7 @@ export function TopBar({
   onMenu,
   onRedo,
   onUndo,
+  saveStatus,
 }: TopBarProps) {
   return (
     <header className="topbar">
@@ -41,7 +43,7 @@ export function TopBar({
       </button>
       <div className="document-identity">
         <strong>力学図エディタ</strong>
-        <span className="save-state"><span aria-hidden="true" />保存済み</span>
+        <span className={`save-state ${saveStatus}`} aria-live="polite"><span aria-hidden="true" />{saveStatus === "saving" ? "保存中…" : saveStatus === "error" ? "保存できません" : "保存済み"}</span>
       </div>
       <div className="history-actions" aria-label="履歴操作">
         <button className="icon-button" type="button" onClick={onUndo} disabled={!canUndo} aria-label="元に戻す">
@@ -70,4 +72,3 @@ export function TopBar({
     </header>
   );
 }
-

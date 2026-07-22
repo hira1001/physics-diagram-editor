@@ -5,6 +5,7 @@ PowerPointを使わず、教科書品質の力学図を素早く作成するた�
 ## Quality
 
 - [要件トレーサビリティ付き品質テストマトリクス](docs/QUALITY-TEST-MATRIX.md)
+- [品質テスト実施記録](docs/TEST-RESULTS.md)
 
 ## Base stack
 

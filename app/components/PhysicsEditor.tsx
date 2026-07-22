@@ -34,11 +34,10 @@ import {
   type WorkspaceState,
 } from "@/app/lib/editor-types";
 import { sceneToSvg } from "@/app/lib/scene-export";
+import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/app/lib/workspace-storage";
 
 type LibraryTab = "add" | "structure";
 type Flyout = "export" | "menu" | null;
-
-const STORAGE_KEY = "physics-editor-workspace-v1";
 
 function cloneWorkspace(workspace: WorkspaceState): WorkspaceState {
   return JSON.parse(JSON.stringify(workspace)) as WorkspaceState;
@@ -63,7 +62,8 @@ export function PhysicsEditor() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [flyout, setFlyout] = useState<Flyout>(null);
   const [canvasNode, setCanvasNode] = useState<HTMLCanvasElement | null>(null);
-  const [zoom, setZoom] = useState(100);
+  const [saveStatus, setSaveStatus] = useState<"error" | "saved" | "saving">("saved");
+  const [systemNotice, setSystemNotice] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(true);
   const [tourStep, setTourStep] = useState(0);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -71,33 +71,42 @@ export function PhysicsEditor() {
   const activePage = workspace.pages.find((page) => page.id === workspace.activePageId) ?? workspace.pages[0];
 
   useEffect(() => {
-    let restoredWorkspace: WorkspaceState | null = null;
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as WorkspaceState;
-        if (parsed.pages?.length) {
-          restoredWorkspace = {
-            ...INITIAL_WORKSPACE,
-            ...parsed,
-            pages: parsed.pages.map((page) => ({ ...page, scene: { ...INITIAL_SCENE, ...page.scene } })),
-          };
-        }
-      } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
-      }
-    }
-    const tourCompleted = window.localStorage.getItem(`${STORAGE_KEY}-tour`) === "done";
+    const restored = restoreWorkspace(window.localStorage.getItem(WORKSPACE_STORAGE_KEY));
+    const tourCompleted = window.localStorage.getItem(`${WORKSPACE_STORAGE_KEY}-tour`) === "done";
     const frame = window.requestAnimationFrame(() => {
-      if (restoredWorkspace) setWorkspace(restoredWorkspace);
+      setWorkspace(restored.workspace);
+      if (restored.message) setSystemNotice(restored.message);
       if (tourCompleted) setTourOpen(false);
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => window.localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace)), 350);
-    return () => window.clearTimeout(timer);
+    const statusTimer = window.setTimeout(() => setSaveStatus("saving"), 0);
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(WORKSPACE_STORAGE_KEY, serializeWorkspace(workspace));
+        setSaveStatus("saved");
+      } catch {
+        setSaveStatus("error");
+        setSystemNotice("端末への保存に失敗しました。空き容量とブラウザ設定を確認してください");
+      }
+    }, 350);
+    return () => {
+      window.clearTimeout(statusTimer);
+      window.clearTimeout(timer);
+    };
+  }, [workspace]);
+
+  const saveNow = useCallback(() => {
+    try {
+      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, serializeWorkspace(workspace));
+      setSaveStatus("saved");
+      setSystemNotice("現在の図を端末へ保存しました");
+    } catch {
+      setSaveStatus("error");
+      setSystemNotice("端末への保存に失敗しました。空き容量とブラウザ設定を確認してください");
+    }
   }, [workspace]);
 
   const recordWorkspace = useCallback((snapshot: WorkspaceState) => {
@@ -297,11 +306,17 @@ export function PhysicsEditor() {
 
   const finishTour = useCallback(() => {
     setTourOpen(false);
-    window.localStorage.setItem(`${STORAGE_KEY}-tour`, "done");
+    window.localStorage.setItem(`${WORKSPACE_STORAGE_KEY}-tour`, "done");
   }, []);
 
   return (
-    <div className={`physics-editor density-${workspace.density}`}>
+    <div
+      className={`physics-editor density-${workspace.density}`}
+      style={{
+        "--panel-left": `${workspace.leftPanelWidth}px`,
+        "--panel-right": `${workspace.rightPanelWidth}px`,
+      } as React.CSSProperties}
+    >
       <TopBar
         canRedo={redoStack.length > 0}
         canUndo={undoStack.length > 0}
@@ -313,6 +328,7 @@ export function PhysicsEditor() {
         onMenu={() => setFlyout(flyout === "menu" ? null : "menu")}
         onRedo={redo}
         onUndo={undo}
+        saveStatus={saveStatus}
       />
 
       {commandOpen ? <CommandPalette commands={commands} query={commandQuery} onClose={() => { setCommandOpen(false); setCommandQuery(""); }} /> : null}
@@ -321,6 +337,7 @@ export function PhysicsEditor() {
         <div className="menu-flyout">
           <div className="flyout-heading"><strong>表示設定</strong><button aria-label="メニューを閉じる" type="button" onClick={() => setFlyout(null)}><X size={14} /></button></div>
           <label className="menu-row"><span><Settings2 size={15} />UI密度</span><select value={workspace.density} onChange={(event) => setWorkspace((current) => ({ ...current, density: event.target.value as WorkspaceState["density"] }))}><option value="standard">標準</option><option value="compact">コンパクト</option></select></label>
+          <button className="menu-row" type="button" onClick={saveNow}><span><Check size={15} />今すぐ保存</span></button>
           <button className="menu-row" type="button" onClick={() => setTourOpen(true)}><span><CircleHelp size={15} />60秒ガイド</span><ChevronDown size={14} /></button>
           <button className="menu-row" type="button" onClick={() => setWorkspace(INITIAL_WORKSPACE)}><span><Sparkles size={15} />サンプルを復元</span></button>
         </div>
@@ -361,7 +378,7 @@ export function PhysicsEditor() {
           activeTool={activeTool}
           pageKind={activePage.kind}
           scene={activePage.scene}
-          zoom={zoom}
+          zoom={workspace.zoom}
           onCanvasReady={setCanvasNode}
           onCommitSnapshot={commitSnapshot}
           onPointerPositionChange={setPointerPosition}
@@ -382,7 +399,7 @@ export function PhysicsEditor() {
           <button className="add-page" type="button" onClick={addBlankPage} aria-label="図を追加"><Plus size={14} /></button>
         </div>
         <div className="drawing-status"><span>x: {pointerPosition.x}</span><span>y: {pointerPosition.y}</span><span>θ: {activePage.scene.angle}°</span><button className={activePage.scene.grid ? "active" : ""} type="button" onClick={() => updateScene({ grid: !activePage.scene.grid })}><Grid3X3 size={13} />GRID</button><button className={activePage.scene.snapEnabled ? "active" : ""} type="button" onClick={() => updateScene({ snapEnabled: !activePage.scene.snapEnabled })}>SNAP</button></div>
-        <div className="zoom-controls"><button type="button" aria-label="縮小" onClick={() => setZoom((value) => Math.max(50, value - 10))}><Minus size={13} /></button><span>{zoom}%</span><button type="button" aria-label="拡大" onClick={() => setZoom((value) => Math.min(180, value + 10))}><Plus size={13} /></button><button type="button" title="全体表示" onClick={() => { setZoom(100); updateScene({ diagramOffsetX: 0, diagramOffsetY: 0 }); }}><Maximize2 size={13} /></button></div>
+        <div className="zoom-controls"><button type="button" aria-label="縮小" onClick={() => setWorkspace((current) => ({ ...current, zoom: Math.max(50, current.zoom - 10) }))}><Minus size={13} /></button><span>{workspace.zoom}%</span><button type="button" aria-label="拡大" onClick={() => setWorkspace((current) => ({ ...current, zoom: Math.min(180, current.zoom + 10) }))}><Plus size={13} /></button><button type="button" title="全体表示" onClick={() => { setWorkspace((current) => ({ ...current, zoom: 100 })); updateScene({ diagramOffsetX: 0, diagramOffsetY: 0 }); }}><Maximize2 size={13} /></button></div>
       </footer>
 
       {tourOpen ? (
@@ -397,6 +414,7 @@ export function PhysicsEditor() {
       ) : null}
 
       {templateOpen ? <TemplateDialog onApply={applyTemplate} onClose={() => setTemplateOpen(false)} /> : null}
+      {systemNotice ? <div className={`system-notice ${saveStatus === "error" ? "error" : ""}`} role={saveStatus === "error" ? "alert" : "status"}><span>{systemNotice}</span><button type="button" aria-label="通知を閉じる" onClick={() => setSystemNotice(null)}><X size={14} /></button></div> : null}
     </div>
   );
 }
