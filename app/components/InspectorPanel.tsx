@@ -267,6 +267,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
               <input aria-label="変量単位" value={variable.unit} onChange={(event) => onSceneChange({ variables: scene.variables.map((item) => item.id === variable.id ? { ...item, unit: event.target.value } : item) })} placeholder="単位" />
               <button type="button" aria-label="変量を削除" onClick={() => onSceneChange({ variables: scene.variables.filter((item) => item.id !== variable.id) })}><Trash2 size={13} /></button>
             </div>)}
+            {selectedVariables.map((variable) => <div className="property-note" key={`${variable.id}-meta`}><Link2 size={13} />型 {variable.type} · 参照 {variable.referenceIds.length}</div>)}
             {!selectedVariables.length ? <button className="add-row" type="button" onClick={() => onSceneChange({ variables: [...scene.variables, createVariableForElement(selectedElement)] })}><Plus size={13} />ラベルを変量化</button> : null}
           </> : <>
             <button className="token-row active" type="button" onClick={() => onSceneChange({ selectedId: "angle" })}><i>θ</i><span>斜面角</span><b>{scene.angle}°</b></button>

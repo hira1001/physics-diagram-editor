@@ -23,16 +23,22 @@ function boundaryDistance(element: DiagramElement, directionX: number, direction
   return Math.min(tx, ty);
 }
 
-export function resolveDiagramElement(element: DiagramElement, elements: readonly DiagramElement[]) {
-  if (isVectorElement(element.kind) && element.referenceTargetId) {
-    const target = elements.find((item) => item.id === element.referenceTargetId);
+export function resolveDiagramElement(element: DiagramElement, elements: readonly DiagramElement[]): DiagramElement {
+  if (element.referenceTargetId) {
+    const rawTarget = elements.find((item) => item.id === element.referenceTargetId);
+    const target: DiagramElement | undefined = rawTarget && isConnectionElement(rawTarget.kind) ? resolveDiagramElement(rawTarget, elements) : rawTarget;
     if (target) {
-      const radians = element.rotation * Math.PI / 180;
-      return {
-        ...element,
-        x: target.x + Math.cos(radians) * element.width / 2,
-        y: target.y + Math.sin(radians) * element.width / 2,
-      };
+      if (isVectorElement(element.kind)) {
+        const radians = element.rotation * Math.PI / 180;
+        return {
+          ...element,
+          x: target.x + Math.cos(radians) * element.width / 2,
+          y: target.y + Math.sin(radians) * element.width / 2,
+        };
+      }
+      if (element.kind === "length-dimension") return { ...element, x: target.x, y: target.y, width: target.width, rotation: target.rotation };
+      if (element.kind === "radius-dimension") return { ...element, x: target.x, y: target.y, width: target.width, height: target.height, rotation: target.rotation };
+      if (["local-axis", "center-of-mass", "point-label", "text"].includes(element.kind)) return { ...element, x: target.x, y: target.y, rotation: target.rotation };
     }
   }
   if (!isConnectionElement(element.kind) || !element.startTargetId || !element.endTargetId) return element;
@@ -93,21 +99,34 @@ export function createConnection(kind: Extract<DiagramElementKind, "string" | "r
 
 export function variableTypeForElement(kind: DiagramElementKind): VariableType {
   if (vectorKinds.has(kind)) return "vector";
-  if (kind === "angle-arc" || kind === "moment") return "angle";
-  if (kind === "length-dimension" || kind === "radius-dimension" || connectionKinds.has(kind)) return "length";
+  if (kind === "angle-arc") return "angle";
+  if (kind === "spring" || kind === "damper") return "coefficient";
+  if (["string", "rope", "cable", "light-rod", "strut"].includes(kind)) return "vector";
+  if (kind === "length-dimension" || kind === "radius-dimension") return "length";
   if (["point-mass", "block", "sphere", "disk", "wedge", "cart"].includes(kind)) return "mass";
   return "scalar";
 }
 
 export function createVariableForElement(element: DiagramElement, id = globalThis.crypto?.randomUUID?.() ?? `variable-${Date.now()}`): Variable {
   const type = variableTypeForElement(element.kind);
+  const specialized = element.kind === "spring"
+    ? { symbol: "k", unit: "N/m" }
+    : element.kind === "damper"
+      ? { symbol: "c", unit: "N·s/m" }
+      : element.kind === "moment"
+        ? { symbol: element.label || "M", unit: "N·m" }
+      : ["string", "rope", "cable"].includes(element.kind)
+        ? { symbol: "T", unit: "N" }
+        : ["light-rod", "strut"].includes(element.kind)
+          ? { symbol: element.label || "S", unit: "N" }
+          : null;
   const fallbackSymbol = catalogEntry(element.kind).defaultLabel || (type === "length" ? "L" : type === "vector" ? "F" : "q");
   return {
     id,
     referenceIds: [element.id],
-    symbol: element.label || fallbackSymbol,
+    symbol: specialized?.symbol ?? (element.label || fallbackSymbol),
     type,
-    unit: type === "mass" ? "kg" : type === "length" ? "m" : type === "angle" ? "°" : type === "vector" ? "N" : "",
+    unit: specialized?.unit ?? (type === "mass" ? "kg" : type === "length" ? "m" : type === "angle" ? "°" : type === "vector" ? "N" : ""),
     value: "",
   };
 }

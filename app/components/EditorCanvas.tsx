@@ -773,7 +773,7 @@ export function EditorCanvas({
         </div>
       ) : null}
 
-      {hudPosition && !dragMode ? (
+      {activeTool === "select" && hudPosition && !dragMode ? (
         <div className="selection-hud" style={hudPosition}>
           {scene.selectedId === "incline" || scene.selectedId === "angle" ? (
             scene.surfaceKind === "incline" ? <label><span>θ</span><SceneNumericInput min="5" max="75" property="angle" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></label> : <span className="hud-name">{surfaceDisplayName(scene.surfaceKind, scene.surfaceRoughness)}</span>

@@ -25,6 +25,9 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     const mass = createDiagramElement("point-mass", 100, 100, "mass-a");
     const variable = createVariableForElement(mass, "variable-mass-a");
     expect(variable).toEqual({ id: "variable-mass-a", referenceIds: ["mass-a"], symbol: "m", type: "mass", unit: "kg", value: "" });
+    expect(createVariableForElement(createDiagramElement("spring", 0, 0), "spring-k")).toMatchObject({ symbol: "k", type: "coefficient", unit: "N/m" });
+    expect(createVariableForElement(createDiagramElement("damper", 0, 0), "damper-c")).toMatchObject({ symbol: "c", type: "coefficient", unit: "N·s/m" });
+    expect(createVariableForElement(createDiagramElement("rope", 0, 0), "rope-t")).toMatchObject({ symbol: "T", type: "vector", unit: "N" });
   });
 
   it("offers deterministic body actions and keeps an attached force on its target", () => {

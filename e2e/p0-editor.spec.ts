@@ -442,3 +442,39 @@ test("Semantic connection foundation: a string follows two targets and protects 
   await expect(inspector.getByLabel("変量値")).toHaveValue("2");
   await expect(inspector.getByLabel("変量単位")).toHaveValue("kg");
 });
+
+test("PHY-005: a spring keeps two endpoints and exposes the spring constant", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  const canvas = page.getByTestId("editor-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Editor canvas has no bounding box");
+
+  await librarySearch.fill("直方体");
+  const blockTool = page.getByRole("button", { name: "物体 m", exact: true });
+  await blockTool.click();
+  await canvas.click({ position: { x: 330, y: 490 } });
+  await blockTool.click();
+  await canvas.click({ position: { x: 650, y: 490 } });
+
+  await librarySearch.fill("スプリング");
+  await page.getByRole("button", { name: "ばね k", exact: true }).click();
+  await canvas.click({ position: { x: 490, y: 440 } });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await inspector.getByLabel("接続の始点").selectOption({ index: 1 });
+  await inspector.getByLabel("接続の終点").selectOption({ index: 2 });
+  await inspector.getByRole("button", { name: "ラベルを変量化", exact: true }).click();
+  await expect(inspector.getByLabel("変量記号")).toHaveValue("k");
+  await expect(inspector.getByLabel("変量単位")).toHaveValue("N/m");
+  await expect(inspector.getByText("型 coefficient · 参照 1", { exact: true })).toBeVisible();
+  await expect(canvas).toHaveScreenshot("semantic-spring-connected.png", { maxDiffPixels: 0 });
+
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  const firstBlock = page.locator(".catalog-structure").getByRole("button", { name: "物体 m", exact: true }).first();
+  await firstBlock.click();
+  await page.mouse.move(box.x + 330, box.y + 490);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 390, box.y + 400, { steps: 8 });
+  await page.mouse.up();
+  await expect(canvas).toHaveScreenshot("semantic-spring-followed.png", { maxDiffPixels: 0 });
+});
