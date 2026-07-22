@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
-import { SkeletonPreview } from "./_sites-preview/SkeletonPreview";
+import { PhysicsEditor } from "@/app/components/PhysicsEditor";
 
 export const metadata: Metadata = {
-  title: "Your site is taking shape",
-  description:
-    "Your first version will appear here automatically when it’s ready.",
-  other: {
-    "codex-preview": "development",
-  },
+  title: "力学図エディタ",
+  description: "物理図を、考える速さで。変量と制約を理解する力学図専用エディタ。",
 };
 
 export default function Home() {
-  return <SkeletonPreview />;
+  return <PhysicsEditor />;
 }

@@ -14,6 +14,7 @@ import type { SceneState, SelectionId } from "@/app/lib/editor-types";
 
 interface InspectorPanelProps {
   scene: SceneState;
+  onCreateFreeBody: () => void;
   onSceneChange: (patch: Partial<SceneState>) => void;
 }
 
@@ -29,7 +30,7 @@ const selectionNames: Record<Exclude<SelectionId, null>, string> = {
   pulley: "滑車",
 };
 
-export function InspectorPanel({ scene, onSceneChange }: InspectorPanelProps) {
+export function InspectorPanel({ scene, onCreateFreeBody, onSceneChange }: InspectorPanelProps) {
   const selectedName = scene.selectedId ? selectionNames[scene.selectedId] : "選択なし";
   const isIncline = scene.selectedId === "incline" || scene.selectedId === "angle";
   const isBlock = scene.selectedId === "block";
@@ -70,7 +71,7 @@ export function InspectorPanel({ scene, onSceneChange }: InspectorPanelProps) {
           <button type="button" onClick={() => onSceneChange({ showGravity: true, showNormal: true, showFriction: true })}><MoveUpRight size={15} />力を追加</button>
           <button type="button"><FlipHorizontal2 size={15} />反転</button>
           <button type="button"><Link2 size={15} />接続</button>
-          <button type="button"><RotateCcw size={15} />整列</button>
+          <button type="button" onClick={onCreateFreeBody}><RotateCcw size={15} />自由体図</button>
         </div>
       </section>
 
@@ -98,4 +99,3 @@ export function InspectorPanel({ scene, onSceneChange }: InspectorPanelProps) {
     </aside>
   );
 }
-

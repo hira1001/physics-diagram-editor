@@ -17,7 +17,7 @@ import {
   Pin,
   Search,
   Slash,
-  Spring,
+  Waves,
   Type,
   Unlock,
 } from "lucide-react";
@@ -48,7 +48,7 @@ const libraryItems: Array<{
   { id: "force", name: "力ベクトル", meta: "F", icon: MoveUpRight },
   { id: "angle", name: "角度・寸法", meta: "A", icon: Gauge },
   { id: "axis", name: "座標軸", meta: "X", icon: Axis3D },
-  { id: "spring", name: "ばね", meta: "S", icon: Spring },
+  { id: "spring", name: "ばね", meta: "S", icon: Waves },
   { id: "pulley", name: "滑車・糸", meta: "U", icon: CircleDot },
   { id: "text", name: "テキスト", meta: "T", icon: Type },
 ];
@@ -59,7 +59,7 @@ const structureItems: Array<{
   depth: number;
   locked?: boolean;
 }> = [
-  { id: "incline", name: "斜面  θ = 30°", depth: 0, locked: true },
+  { id: "incline", name: "斜面", depth: 0, locked: true },
   { id: "angle", name: "角度弧  θ", depth: 1 },
   { id: "block", name: "物体  m", depth: 0 },
   { id: "force-gravity", name: "重力  mg", depth: 1 },
@@ -152,21 +152,17 @@ export function LibraryPanel({
                   type="button"
                   style={{ paddingLeft: `${12 + item.depth * 18}px` }}
                   onClick={() => onSelect(item.id)}
+                  onDoubleClick={() => {
+                    if (item.id === "angle") onSceneChange({ showAngle: !scene.showAngle });
+                    if (item.id === "axis") onSceneChange({ showAxis: !scene.showAxis });
+                  }}
+                  title={item.id === "angle" || item.id === "axis" ? "ダブルクリックで表示を切り替え" : item.name}
                 >
                   {item.depth === 0 ? <ChevronRight size={12} /> : <span className="tree-elbow">└</span>}
                   <MousePointer2 size={13} />
-                  <span>{item.name}</span>
+                  <span>{item.id === "incline" ? `${item.name}  θ = ${scene.angle}°` : item.name}</span>
                   {item.locked ? <Lock size={12} /> : <Unlock size={12} className="muted-icon" />}
-                  <span
-                    className="visibility-control"
-                    role="button"
-                    tabIndex={0}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (item.id === "angle") onSceneChange({ showAngle: !scene.showAngle });
-                      if (item.id === "axis") onSceneChange({ showAxis: !scene.showAxis });
-                    }}
-                  >
+                  <span className="visibility-control" aria-hidden="true">
                     {isVisible ? <Eye size={13} /> : <EyeOff size={13} />}
                   </span>
                 </button>
@@ -178,4 +174,3 @@ export function LibraryPanel({
     </aside>
   );
 }
-
