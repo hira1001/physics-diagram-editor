@@ -17,9 +17,11 @@ export type DiagramElementKind =
 
 export interface DiagramElement {
   endTargetId: string | null;
+  fontSize: number;
   id: string;
   kind: DiagramElementKind;
   label: string;
+  lineWidth: number;
   locked: boolean;
   rotation: number;
   referenceTargetId: string | null;

@@ -1801,6 +1801,13 @@ kbd {
   font-size: 10px;
 }
 
+.appearance-list label.property-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 72px 1fr;
+  font-size: 11px;
+}
+
 .selection-hud button.active {
   color: var(--blue-deep);
   background: var(--blue-soft);

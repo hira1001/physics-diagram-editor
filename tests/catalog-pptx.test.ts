@@ -36,4 +36,19 @@ describe("OUT-010 editable PPTX catalog output", () => {
     expect(archive.file("[Content_Types].xml")).not.toBeNull();
     for (const element of elements) expect(xml, element.kind).toContain(`physics:${element.id}:${element.kind}`);
   });
+
+  it("preserves component font size and line width as editable PowerPoint properties", () => {
+    const operations: Array<{ kind: string; options: Record<string, unknown>; text?: string }> = [];
+    const slide = {
+      addShape: (kind: string, options: Record<string, unknown>) => operations.push({ kind, options }),
+      addText: (text: string, options: Record<string, unknown>) => operations.push({ kind: "text", options, text }),
+    };
+    const element = createDiagramElement("block", 300, 200, "styled-pptx");
+    element.fontSize = 15;
+    element.lineWidth = 1.2;
+    addCatalogElementsToPptx(slide as never, { ellipse: "ellipse", line: "line", rect: "rect" } as never, [element]);
+
+    expect(operations.find((operation) => operation.kind === "text")?.options.fontSize).toBe(11.25);
+    expect((operations.find((operation) => operation.kind === "rect")?.options.line as { width: number }).width).toBeCloseTo(.9);
+  });
 });

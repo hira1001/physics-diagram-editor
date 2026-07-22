@@ -74,8 +74,8 @@ describe("ARC-001/002/003 and REL-002/004/005 workspace persistence", () => {
     const normalized = normalizeScene({
       selectedId: "element:damper",
       elements: [
-        { id: "damper", kind: "damper", label: "c", locked: false, rotation: 0, visible: true, width: 170, height: 46, x: 120, y: 180 },
-        { id: "damper", kind: "spring", label: "k", locked: true, rotation: Number.NaN, visible: true, width: -20, height: 38, x: Number.POSITIVE_INFINITY, y: 220 },
+        { id: "damper", kind: "damper", label: "c", locked: false, rotation: 0, visible: true, width: 170, height: 46, x: 120, y: 180, fontSize: 15, lineWidth: 1.2 },
+        { id: "damper", kind: "spring", label: "k", locked: true, rotation: Number.NaN, visible: true, width: -20, height: 38, x: Number.POSITIVE_INFINITY, y: 220, fontSize: 1000, lineWidth: 0 },
         { id: "fake", kind: "not-a-component" },
       ],
     });
@@ -83,6 +83,8 @@ describe("ARC-001/002/003 and REL-002/004/005 workspace persistence", () => {
     expect(normalized.elements).toHaveLength(2);
     expect(new Set(normalized.elements.map((item) => item.id)).size).toBe(2);
     expect(normalized.elements[1]).toMatchObject({ kind: "spring", locked: true, rotation: 0, width: 8, x: 500 });
+    expect(normalized.elements[0]).toMatchObject({ fontSize: 15, lineWidth: 1.2 });
+    expect(normalized.elements[1]).toMatchObject({ fontSize: 96, lineWidth: 0.1 });
     expect(normalized.selectedId).toBe("element:damper");
   });
 });

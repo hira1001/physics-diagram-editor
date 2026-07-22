@@ -39,13 +39,13 @@ export function addCatalogElementsToPptx(slide: PptxSlideLike, shapeType: PptxSh
     const centerY = ORIGIN_Y + element.y * INCHES_PER_UNIT;
     const width = Math.max(0.08, element.width * INCHES_PER_UNIT);
     const height = Math.max(0.08, element.height * INCHES_PER_UNIT);
-    const line = { color: "18202B", width: 1.5 };
+    const line = { color: "18202B", width: Math.max(0.1, element.lineWidth * .75) };
 
     if (isVectorElement(element.kind)) {
       const start = point(element, -element.width / 2);
       const end = point(element, element.width / 2);
       slide.addShape(shapeType.line, { objectName, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, line: { ...line, endArrowType: "triangle" } });
-      slide.addText(element.label, { objectName: `${objectName}:label`, x: end.x + 0.08, y: end.y - 0.18, w: 0.65, h: 0.32, fontFace: "Cambria Math", fontSize: 18, italic: true, margin: 0 });
+      slide.addText(element.label, { objectName: `${objectName}:label`, x: end.x + 0.08, y: end.y - 0.18, w: 0.65, h: 0.32, fontFace: "Cambria Math", fontSize: element.fontSize * .75, italic: true, margin: 0 });
       continue;
     }
 
@@ -66,7 +66,7 @@ export function addCatalogElementsToPptx(slide: PptxSlideLike, shapeType: PptxSh
       } else {
         slide.addShape(shapeType.line, { objectName, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, line });
       }
-      if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - 0.3, y: centerY - 0.35, w: 0.6, h: 0.3, fontFace: "Cambria Math", fontSize: 16, italic: true, align: "center", margin: 0 });
+      if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - 0.3, y: centerY - 0.35, w: 0.6, h: 0.3, fontFace: "Cambria Math", fontSize: element.fontSize * .75, italic: true, align: "center", margin: 0 });
       continue;
     }
 
@@ -88,6 +88,6 @@ export function addCatalogElementsToPptx(slide: PptxSlideLike, shapeType: PptxSh
         line,
       });
     }
-    if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - 0.4, y: centerY - 0.18, w: 0.8, h: 0.35, align: "center", fontFace: "Cambria Math", fontSize: 17, italic: true, margin: 0, rotate: lineLike ? 0 : element.rotation });
+    if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - 0.4, y: centerY - 0.18, w: 0.8, h: 0.35, align: "center", fontFace: "Cambria Math", fontSize: element.fontSize * .75, italic: true, margin: 0, rotate: lineLike ? 0 : element.rotation });
   }
 }

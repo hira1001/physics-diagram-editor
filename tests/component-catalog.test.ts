@@ -63,6 +63,15 @@ describe("PHY-075 standard component catalog", () => {
     expect(svg).toContain("&lt;m &amp; &quot;1&quot;&gt;");
   });
 
+  it("uses each component's real font size and line width in SVG", () => {
+    const element = createDiagramElement("block", 200, 180, "styled-block");
+    element.fontSize = 14;
+    element.lineWidth = 1.25;
+    const svg = diagramElementsToSvg([element]);
+    expect(svg).toContain('font-size="14"');
+    expect(svg).toContain('stroke-width="1.25"');
+  });
+
   it("renders every component kind and hit-tests rotated bounds", () => {
     const context = new Proxy({}, {
       get: () => () => undefined,

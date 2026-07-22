@@ -33,5 +33,17 @@ describe("automatic export quality inspection", () => {
     expect(codes).toContain("outside-paper");
     expect(codes).toContain("label-overlap");
   });
-});
 
+  it("identifies text and line settings below the textbook export thresholds", () => {
+    const invalid = page();
+    const element = createDiagramElement("block", 300, 200, "tiny-style");
+    element.fontSize = 9;
+    element.lineWidth = .4;
+    invalid.scene.elements = [element];
+
+    expect(inspectPageQuality(invalid)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "small-text", targetId: "element:tiny-style" }),
+      expect.objectContaining({ code: "thin-line", targetId: "element:tiny-style" }),
+    ]));
+  });
+});

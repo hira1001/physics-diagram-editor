@@ -38,6 +38,7 @@ import { addCatalogElementsToPptx } from "@/app/lib/catalog-pptx";
 import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/app/lib/workspace-storage";
 import { blockRotationDegrees, effectiveSurfaceAngle, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
 import { componentToolId, PHYSICS_COMPONENT_CATALOG } from "@/app/lib/component-catalog";
+import { writeTextToClipboard } from "@/app/lib/clipboard";
 
 type LibraryTab = "add" | "structure";
 type Flyout = "export" | "menu" | null;
@@ -235,8 +236,14 @@ export function PhysicsEditor() {
   }, [exportPages, exportSettings]);
 
   const copySvg = useCallback(async () => {
-    await navigator.clipboard.writeText(exportScene(activePage.scene, { ...exportSettings, format: "svg", range: exportSettings.range === "selection" ? "selection" : "current" }));
-    setSystemNotice("SVGをクリップボードへコピーしました");
+    setExportError(null);
+    try {
+      await writeTextToClipboard(exportScene(activePage.scene, { ...exportSettings, format: "svg", range: exportSettings.range === "selection" ? "selection" : "current" }));
+      setSystemNotice("SVGをクリップボードへコピーしました");
+      setFlyout(null);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "SVGをコピーできませんでした");
+    }
   }, [activePage.scene, exportSettings]);
 
   const exportPdf = useCallback(async () => {

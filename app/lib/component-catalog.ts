@@ -116,10 +116,12 @@ export function createDiagramElement(kind: DiagramElementKind, x: number, y: num
   const rotation = kind === "gravity" ? 90 : kind === "normal-force" || kind === "buoyancy" ? -90 : 0;
   return {
     endTargetId: null,
+    fontSize: kind === "text" ? 18 : 22,
     height: definition.defaultHeight,
     id,
     kind,
     label: definition.defaultLabel,
+    lineWidth: 2,
     locked: false,
     rotation,
     referenceTargetId: null,

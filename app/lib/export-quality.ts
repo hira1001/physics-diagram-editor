@@ -8,7 +8,9 @@ export type ExportQualityCode =
   | "label-overlap"
   | "model-reference"
   | "outside-paper"
-  | "surface-conflict";
+  | "small-text"
+  | "surface-conflict"
+  | "thin-line";
 
 export interface ExportQualityIssue {
   code: ExportQualityCode;
@@ -20,16 +22,17 @@ export interface ExportQualityIssue {
 
 const PAPER_WIDTH = 900;
 const PAPER_HEIGHT = 560;
+const FILL_ONLY_KINDS = new Set(["point-mass", "point-label", "text"]);
 
 function labelBounds(scene: SceneState) {
   return scene.elements
     .filter((element) => element.visible && element.label.trim())
     .map((element) => ({
       id: element.id,
-      left: element.x - Math.max(18, element.label.length * 7),
-      right: element.x + Math.max(18, element.label.length * 7),
-      top: element.y - element.height / 2 - 28,
-      bottom: element.y - element.height / 2 - 7,
+      left: element.x - Math.max(18, element.label.length * element.fontSize * .35),
+      right: element.x + Math.max(18, element.label.length * element.fontSize * .35),
+      top: element.y - element.height / 2 - element.fontSize - 7,
+      bottom: element.y - element.height / 2 - 5,
     }));
 }
 
@@ -63,16 +66,24 @@ export function inspectPageQuality(page: DiagramPage): ExportQualityIssue[] {
 
   for (const error of validateModelReferences(scene.elements, scene.variables, scene.constraints)) {
     const sourceId = error.split(":")[0];
+    const sourceVariable = scene.variables.find((item) => item.id === sourceId);
+    const referenceId = sourceVariable?.referenceIds.find((id) => scene.elements.some((element) => element.id === id));
     issues.push({
       code: "model-reference",
       message: `未定義の変量・参照: ${error}`,
       pageId: page.id,
       severity: "error",
-      targetId: scene.elements.some((item) => item.id === sourceId) ? `element:${sourceId}` : null,
+      targetId: scene.elements.some((item) => item.id === sourceId) ? `element:${sourceId}` : referenceId ? `element:${referenceId}` : null,
     });
   }
 
   for (const element of scene.elements.filter((item) => item.visible)) {
+    if (element.label.trim() && element.fontSize < 12) {
+      issues.push({ code: "small-text", message: `${element.label}の文字が小さすぎます（12px以上を推奨）`, pageId: page.id, severity: "warning", targetId: `element:${element.id}` });
+    }
+    if (!FILL_ONLY_KINDS.has(element.kind) && element.lineWidth < .75) {
+      issues.push({ code: "thin-line", message: `${element.label || "部品"}の線が細すぎます（0.75px以上を推奨）`, pageId: page.id, severity: "warning", targetId: `element:${element.id}` });
+    }
     const halfWidth = Math.max(4, element.width / 2);
     const halfHeight = Math.max(4, element.height / 2);
     if (element.x - halfWidth < 0 || element.y - halfHeight < 0 || element.x + halfWidth > PAPER_WIDTH || element.y + halfHeight > PAPER_HEIGHT) {
@@ -100,4 +111,3 @@ export function inspectPageQuality(page: DiagramPage): ExportQualityIssue[] {
 export function inspectExportQuality(pages: readonly DiagramPage[]) {
   return pages.flatMap(inspectPageQuality);
 }
-

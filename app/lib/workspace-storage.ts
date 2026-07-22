@@ -67,10 +67,12 @@ export function normalizeScene(candidate: unknown): SceneState {
     seenElementIds.add(id);
     return [{
       endTargetId: typeof element.endTargetId === "string" ? element.endTargetId : null,
+      fontSize: clamp(finiteOr(element.fontSize, element.kind === "text" ? 18 : 22), 6, 96),
       height: clamp(finiteOr(element.height, definition.defaultHeight), 8, 1000),
       id,
       kind: element.kind,
       label: typeof element.label === "string" ? element.label.slice(0, 80) : definition.defaultLabel,
+      lineWidth: clamp(finiteOr(element.lineWidth, 2), 0.1, 12),
       locked: element.locked === true,
       rotation: clamp(finiteOr(element.rotation, 0), -3600, 3600),
       referenceTargetId: typeof element.referenceTargetId === "string" ? element.referenceTargetId : null,

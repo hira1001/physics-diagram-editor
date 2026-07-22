@@ -425,6 +425,7 @@ test("OUT-007/010: PPTX download is valid and keeps catalog parts as separate na
   const downloadPromise = page.waitForEvent("download");
   await exportDialog.getByRole("button", { name: "出力", exact: true }).click();
   const download = await downloadPromise;
+  await download.saveAs("test-results/powerpoint-verification.pptx");
   const path = await download.path();
   if (!path) throw new Error("PPTX download path is unavailable");
   const archive = await JSZip.loadAsync(await readFile(path));
@@ -434,6 +435,22 @@ test("OUT-007/010: PPTX download is valid and keeps catalog parts as separate na
   expect(archive.file("ppt/presentation.xml")).not.toBeNull();
   expect(slideXml).toContain(":block");
   expect(slideXml).toContain(":label");
+});
+
+test("OUT-004: SVG copy places a complete editable SVG on the clipboard", async ({ page, context, browserName }) => {
+  if (browserName === "chromium") await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await dialog.getByLabel("出力形式").selectOption("svg");
+  await dialog.getByRole("button", { name: "SVGをコピー", exact: true }).click();
+  await expect(page.getByText("SVGをクリップボードへコピーしました", { exact: true })).toBeVisible();
+  if (browserName === "chromium") {
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toMatch(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+    expect(copied).toContain('data-layer="structure"');
+    expect(copied).toContain('data-layer="vector"');
+    expect(copied).toContain(">θ</text>");
+  }
 });
 
 test("OUT-002/003/005/006/011/012/013: output settings change the generated files", async ({ page }) => {
@@ -526,6 +543,132 @@ test("OUT-014/019/020/021: automatic quality warnings identify and focus their t
   await dialog.getByRole("button", { name: /部品ラベルが重なっています/ }).click();
   await expect(dialog).toHaveCount(0);
   await expect(inspector.locator(".inspector-title strong")).toHaveText("物体");
+});
+
+test("OUT-015/016/017/018: quality inspection identifies constraint, variable, text, and line targets", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  const canvas = page.getByTestId("editor-canvas");
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+
+  await librarySearch.fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  await canvas.click({ position: { x: 500, y: 420 } });
+  await inspector.getByRole("button", { name: "ラベルを変量化", exact: true }).click();
+  await inspector.getByLabel("変量記号").fill("");
+  await inspector.getByLabel("変量記号").press("Enter");
+
+  await librarySearch.fill("軽い糸");
+  await page.getByRole("button", { name: "糸 T", exact: true }).click();
+  await canvas.click({ position: { x: 600, y: 360 } });
+  await inspector.getByLabel("接続の始点").selectOption({ index: 1 });
+  await inspector.getByLabel("接続の終点").selectOption({ index: 1 });
+  await expect(inspector.getByRole("alert")).toContainText("始点と終点が同じです");
+
+  await inspector.getByRole("button", { name: "外観", exact: true }).click();
+  await inspector.getByRole("spinbutton", { name: "文字サイズ", exact: true }).fill("9");
+  await inspector.getByRole("spinbutton", { name: "文字サイズ", exact: true }).press("Enter");
+  await inspector.getByRole("spinbutton", { name: "線幅", exact: true }).fill("0.4");
+  await inspector.getByRole("spinbutton", { name: "線幅", exact: true }).press("Enter");
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await expect(dialog.getByRole("button", { name: /始点と終点が同じです/ })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /未定義の変量・参照/ }).first()).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /文字が小さすぎます/ })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /線が細すぎます/ })).toBeVisible();
+  await dialog.getByRole("button", { name: /線が細すぎます/ }).click();
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("糸");
+});
+
+test("OUT-022: a generation failure stays visible and can be retried", async ({ page }) => {
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await dialog.getByLabel("出力形式").selectOption("svg");
+  await page.evaluate(() => {
+    const runtime = window as typeof window & { __originalCreateObjectURL?: typeof URL.createObjectURL };
+    runtime.__originalCreateObjectURL = URL.createObjectURL;
+    URL.createObjectURL = () => { throw new Error("テスト用の生成失敗"); };
+  });
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("テスト用の生成失敗");
+  await expect(dialog.getByRole("button", { name: "出力", exact: true })).toBeEnabled();
+
+  await page.evaluate(() => {
+    const runtime = window as typeof window & { __originalCreateObjectURL?: typeof URL.createObjectURL };
+    if (runtime.__originalCreateObjectURL) URL.createObjectURL = runtime.__originalCreateObjectURL;
+  });
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  await downloadPromise;
+  await expect(dialog).toHaveCount(0);
+});
+
+test("OUT-023: exporting never mutates the document selection or history", async ({ page }) => {
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  const angle = inspector.getByRole("spinbutton", { name: "角度 °" });
+  const undo = page.getByRole("button", { name: "元に戻す", exact: true });
+  await angle.fill("38");
+  await angle.press("Enter");
+  await expect(undo).toBeEnabled();
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await dialog.getByLabel("出力形式").selectOption("svg");
+  const downloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  await downloadPromise;
+
+  await expect(angle).toHaveValue("38");
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("粗い斜面");
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect(angle).toHaveValue("30");
+});
+
+test("OUT-024: math symbols survive SVG, PNG, PDF, and PPTX output", async ({ page }) => {
+  const mathLabel = "θ₁ = ω²t · m/s²";
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("テキスト");
+  await page.getByRole("button", { name: "テキスト 注記", exact: true }).click();
+  await page.getByTestId("editor-canvas").click({ position: { x: 560, y: 180 } });
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await inspector.getByRole("textbox", { name: "ラベル", exact: true }).fill(mathLabel);
+  await inspector.getByRole("textbox", { name: "ラベル", exact: true }).press("Enter");
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "出力設定" });
+  await dialog.getByLabel("出力形式").selectOption("svg");
+  const svgDownloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const svgPath = await (await svgDownloadPromise).path();
+  if (!svgPath) throw new Error("SVG math output is unavailable");
+  expect(await readFile(svgPath, "utf8")).toContain(mathLabel);
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  await dialog.getByLabel("出力形式").selectOption("png");
+  const pngDownloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const pngPath = await (await pngDownloadPromise).path();
+  if (!pngPath) throw new Error("PNG math output is unavailable");
+  const mathPng = PNG.sync.read(await readFile(pngPath));
+  expect(mathPng.data.some((channel, index) => index % 4 !== 3 && channel < 200)).toBe(true);
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  await dialog.getByLabel("出力形式").selectOption("pdf");
+  const pdfDownloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const pdfPath = await (await pdfDownloadPromise).path();
+  if (!pdfPath) throw new Error("PDF math output is unavailable");
+  const mathPdfHex = (await readFile(pdfPath)).toString("hex");
+  for (const utf16Code of ["03b8", "2081", "03c9", "00b2"]) expect(mathPdfHex).toContain(utf16Code);
+
+  await page.getByRole("button", { name: "出力", exact: true }).click();
+  await dialog.getByLabel("出力形式").selectOption("pptx");
+  const pptxDownloadPromise = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "出力", exact: true }).click();
+  const pptxPath = await (await pptxDownloadPromise).path();
+  if (!pptxPath) throw new Error("PPTX math output is unavailable");
+  const archive = await JSZip.loadAsync(await readFile(pptxPath));
+  expect(await archive.file("ppt/slides/slide1.xml")!.async("string")).toContain(mathLabel);
 });
 
 test("OUT-025: empty pages are explained and never downloaded", async ({ page }) => {

@@ -76,8 +76,8 @@ export function drawDiagramElement(
   ctx.scale(scale, scale);
   ctx.strokeStyle = "#18202b";
   ctx.fillStyle = "#18202b";
-  ctx.lineWidth = 2 / scale;
-  ctx.font = `italic 22px Georgia, serif`;
+  ctx.lineWidth = element.lineWidth / scale;
+  ctx.font = `italic ${element.fontSize}px Georgia, serif`;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
@@ -115,16 +115,16 @@ export function drawDiagramElement(
     case "simple-support":
       supportTriangle(ctx, w * .35, h * .7); ctx.save(); ctx.translate(w * .35, 0); supportTriangle(ctx, w * .35, h * .7); ctx.restore(); line(ctx, -w / 2, -h / 2, w / 2, -h / 2); break;
     case "strut":
-      ctx.lineWidth = 5 / scale; line(ctx, -w / 2, 0, w / 2, 0); ctx.lineWidth = 2 / scale; for (const x of [-w / 2, w / 2]) { ctx.beginPath(); ctx.arc(x, 0, 6, 0, Math.PI * 2); ctx.fill(); } drawText(ctx, element.label, 0, -14); break;
+      ctx.lineWidth = element.lineWidth * 2.5 / scale; line(ctx, -w / 2, 0, w / 2, 0); ctx.lineWidth = element.lineWidth / scale; for (const x of [-w / 2, w / 2]) { ctx.beginPath(); ctx.arc(x, 0, 6, 0, Math.PI * 2); ctx.fill(); } drawText(ctx, element.label, 0, -14); break;
 
     case "string":
-      ctx.lineWidth = 1.5 / scale; line(ctx, -w / 2, 0, w / 2, 0); drawText(ctx, element.label, 0, -13); break;
+      ctx.lineWidth = element.lineWidth * .75 / scale; line(ctx, -w / 2, 0, w / 2, 0); drawText(ctx, element.label, 0, -13); break;
     case "rope":
-      ctx.lineWidth = 3.5 / scale; line(ctx, -w / 2, 0, w / 2, 0); drawText(ctx, element.label, 0, -14); break;
+      ctx.lineWidth = element.lineWidth * 1.75 / scale; line(ctx, -w / 2, 0, w / 2, 0); drawText(ctx, element.label, 0, -14); break;
     case "cable":
-      ctx.lineWidth = 2.5 / scale; ctx.setLineDash([9 / scale, 5 / scale]); line(ctx, -w / 2, 0, w / 2, 0); ctx.setLineDash([]); drawText(ctx, element.label, 0, -14); break;
+      ctx.lineWidth = element.lineWidth * 1.25 / scale; ctx.setLineDash([9 / scale, 5 / scale]); line(ctx, -w / 2, 0, w / 2, 0); ctx.setLineDash([]); drawText(ctx, element.label, 0, -14); break;
     case "light-rod":
-      ctx.lineWidth = 5 / scale; line(ctx, -w / 2, 0, w / 2, 0); ctx.lineWidth = 2 / scale; for (const x of [-w / 2, w / 2]) { ctx.beginPath(); ctx.arc(x, 0, 5, 0, Math.PI * 2); ctx.fill(); } drawText(ctx, element.label, 0, -15); break;
+      ctx.lineWidth = element.lineWidth * 2.5 / scale; line(ctx, -w / 2, 0, w / 2, 0); ctx.lineWidth = element.lineWidth / scale; for (const x of [-w / 2, w / 2]) { ctx.beginPath(); ctx.arc(x, 0, 5, 0, Math.PI * 2); ctx.fill(); } drawText(ctx, element.label, 0, -15); break;
     case "spring":
       spring(ctx, w); drawText(ctx, element.label, 0, -19); break;
     case "damper":
@@ -183,7 +183,7 @@ export function drawDiagramElement(
     case "construction-line":
       ctx.setLineDash([7 / scale, 5 / scale]); line(ctx, -w / 2, 0, w / 2, 0); ctx.setLineDash([]); break;
     case "text":
-      ctx.font = `18px system-ui, sans-serif`; drawText(ctx, element.label, 0, 0); break;
+      ctx.font = `${element.fontSize}px system-ui, sans-serif`; drawText(ctx, element.label, 0, 0); break;
   }
 
   if (selected) {
