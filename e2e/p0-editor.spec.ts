@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createGeometry } from "../app/components/EditorCanvas";
 import { INITIAL_SCENE } from "../app/lib/editor-types";
+import { PHYSICS_COMPONENT_CATALOG } from "../app/lib/component-catalog";
 
 async function openCleanEditor(page: Page) {
   await page.goto("/");
@@ -386,6 +387,28 @@ test("Catalog discovery: command search finds aliases and places the real compon
   const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
   await expect(inspector.locator(".inspector-title strong")).toHaveText("抗力");
   await expect(inspector.getByRole("textbox", { name: "ラベル", exact: true })).toHaveValue("D");
+});
+
+test("PHY-075: every standard component name and alias is discoverable and every kind is placeable", async ({ page }) => {
+  test.setTimeout(120_000);
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  const canvas = page.getByTestId("editor-canvas");
+
+  for (const item of PHYSICS_COMPONENT_CATALOG) {
+    for (const query of [item.name, ...item.aliases]) {
+      await librarySearch.fill(query);
+      await expect(page.locator(".catalog-row").filter({ hasText: item.name }).first(), `${item.name} must be found by ${query}`).toBeVisible();
+    }
+  }
+
+  for (const [index, item] of PHYSICS_COMPONENT_CATALOG.entries()) {
+    await librarySearch.fill(item.name);
+    await page.locator(".catalog-row").filter({ hasText: item.name }).first().click();
+    await canvas.click({ position: { x: 70 + index % 11 * 55, y: 390 + Math.floor(index / 11) * 45 } });
+  }
+
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  await expect(page.locator(".catalog-structure")).toHaveCount(PHYSICS_COMPONENT_CATALOG.length);
 });
 
 test("PHY-028/029: body suggestions create a foreground force that follows the body", async ({ page }) => {

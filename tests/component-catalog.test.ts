@@ -32,6 +32,14 @@ describe("PHY-075 standard component catalog", () => {
     expect(searchComponentCatalog(query).map((item) => item.kind)).toContain(expectedKind);
   });
 
+  it("finds every formal name, alias, and declared physics tag", () => {
+    for (const item of PHYSICS_COMPONENT_CATALOG) {
+      for (const query of [item.name, ...item.aliases, ...item.physics]) {
+        expect(searchComponentCatalog(query).map((candidate) => candidate.kind), `${item.kind} must be found by ${query}`).toContain(item.kind);
+      }
+    }
+  });
+
   it("maps tools to catalog definitions deterministically", () => {
     for (const item of PHYSICS_COMPONENT_CATALOG) {
       expect(catalogEntryForTool(componentToolId(item.kind))?.kind).toBe(item.kind);
