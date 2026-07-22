@@ -17,9 +17,9 @@ interface EditorCanvasProps {
   onToolComplete: () => void;
 }
 
-interface Point { x: number; y: number }
+export interface Point { x: number; y: number }
 
-interface Geometry {
+export interface Geometry {
   anglePoint: Point;
   artboard: { x: number; y: number; width: number; height: number };
   annotationPoint: Point;
@@ -53,7 +53,7 @@ function distanceToSegment(point: Point, start: Point, end: Point) {
   return distance(point, { x: start.x + t * dx, y: start.y + t * dy });
 }
 
-function createGeometry(width: number, height: number, scene: SceneState, zoom: number): Geometry {
+export function createGeometry(width: number, height: number, scene: SceneState, zoom: number): Geometry {
   const artboard = {
     x: 42,
     y: 30,
@@ -165,7 +165,7 @@ function drawSpring(ctx: CanvasRenderingContext2D, from: Point, to: Point, scale
   ctx.restore();
 }
 
-function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, scene: SceneState, pageKind: PageKind, zoom: number) {
+export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, scene: SceneState, pageKind: PageKind, zoom: number) {
   const geometry = createGeometry(width, height, scene, zoom);
   const { artboard, scale } = geometry;
   ctx.clearRect(0, 0, width, height);
@@ -210,14 +210,14 @@ function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number,
     };
     const boxWidth = 116 * scale;
     const boxHeight = 86 * scale;
-    if (scene.showGravity) arrow(ctx, { x: center.x, y: center.y + boxHeight / 2 }, { x: center.x, y: center.y + 150 * scale }, "mg", scale);
-    if (scene.showNormal) arrow(ctx, { x: center.x, y: center.y - boxHeight / 2 }, { x: center.x, y: center.y - 150 * scale }, "N", scale);
-    if (scene.showFriction) arrow(ctx, { x: center.x + boxWidth / 2, y: center.y }, { x: center.x + 165 * scale, y: center.y }, "f", scale);
     ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#18202b";
     ctx.lineWidth = 2.2 * scale;
     ctx.fillRect(center.x - boxWidth / 2, center.y - boxHeight / 2, boxWidth, boxHeight);
     ctx.strokeRect(center.x - boxWidth / 2, center.y - boxHeight / 2, boxWidth, boxHeight);
+    if (scene.showGravity) arrow(ctx, { x: center.x, y: center.y + boxHeight / 2 }, { x: center.x, y: center.y + 150 * scale }, "mg", scale);
+    if (scene.showNormal) arrow(ctx, { x: center.x, y: center.y - boxHeight / 2 }, { x: center.x, y: center.y - 150 * scale }, "N", scale);
+    if (scene.showFriction) arrow(ctx, { x: center.x + boxWidth / 2, y: center.y }, { x: center.x + 165 * scale, y: center.y }, "f", scale);
     ctx.fillStyle = "#18202b";
     ctx.font = `italic ${Math.max(21, 28 * scale)}px Georgia, serif`;
     ctx.textAlign = "center";
@@ -271,10 +271,6 @@ function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number,
     ctx.restore();
   }
 
-  if (scene.showGravity) arrow(ctx, blockCenter, geometry.forceGravityEnd, "mg", scale, scene.selectedId === "force-gravity" ? "#3178d4" : undefined);
-  if (scene.showNormal) arrow(ctx, blockCenter, geometry.forceNormalEnd, "N", scale, scene.selectedId === "force-normal" ? "#3178d4" : undefined);
-  if (scene.showFriction) arrow(ctx, blockCenter, geometry.forceFrictionEnd, "f", scale, scene.selectedId === "force-friction" ? "#3178d4" : undefined);
-
   ctx.save();
   ctx.translate(blockCenter.x, blockCenter.y);
   ctx.rotate((scene.flipped ? 1 : -1) * ((scene.angle * Math.PI) / 180));
@@ -285,6 +281,18 @@ function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number,
   ctx.lineWidth = scene.selectedId === "block" || scene.selectedId === "mass-label" ? 3.2 * scale : 2.4 * scale;
   ctx.fillRect(-blockWidth / 2, -blockHeight / 2, blockWidth, blockHeight);
   ctx.strokeRect(-blockWidth / 2, -blockHeight / 2, blockWidth, blockHeight);
+  ctx.restore();
+
+  // Vectors are semantic foreground elements. Draw them only after the object
+  // body so their shaft and arrowhead can never disappear behind its fill.
+  if (scene.showGravity) arrow(ctx, blockCenter, geometry.forceGravityEnd, "mg", scale, scene.selectedId === "force-gravity" ? "#3178d4" : undefined);
+  if (scene.showNormal) arrow(ctx, blockCenter, geometry.forceNormalEnd, "N", scale, scene.selectedId === "force-normal" ? "#3178d4" : undefined);
+  if (scene.showFriction) arrow(ctx, blockCenter, geometry.forceFrictionEnd, "f", scale, scene.selectedId === "force-friction" ? "#3178d4" : undefined);
+
+  // Diagram labels are the top-most content layer, above objects and vectors.
+  ctx.save();
+  ctx.translate(blockCenter.x, blockCenter.y);
+  ctx.rotate((scene.flipped ? 1 : -1) * ((scene.angle * Math.PI) / 180));
   ctx.fillStyle = "#18202b";
   ctx.font = `italic ${Math.max(21, 29 * scale)}px Georgia, serif`;
   ctx.textAlign = "center";
@@ -592,6 +600,7 @@ export function EditorCanvas({
   return (
     <main className={`canvas-workspace tool-${activeTool}`} ref={wrapperRef}>
       <canvas
+        data-testid="editor-canvas"
         ref={canvasRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
