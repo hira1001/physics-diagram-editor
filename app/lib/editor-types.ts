@@ -3,7 +3,7 @@ export type SurfaceKind = "floor" | "incline" | "wall";
 export type SurfaceRoughness = "rough" | "smooth";
 
 export type DiagramElementKind =
-  | "point-mass" | "block" | "sphere" | "disk" | "wedge" | "cart"
+  | "point-mass" | "block" | "sphere" | "disk" | "cylinder" | "wedge" | "cart"
   | "smooth-floor" | "rough-floor" | "smooth-wall" | "rough-wall" | "smooth-incline" | "rough-incline"
   | "ceiling" | "step" | "corner" | "curved-surface"
   | "fixed-end" | "pin-support" | "hinge" | "roller-support" | "simple-support" | "strut"
@@ -13,6 +13,7 @@ export type DiagramElementKind =
   | "fluid-surface" | "container" | "fluid-region"
   | "force" | "gravity" | "normal-force" | "friction-force" | "tension" | "spring-force"
   | "drag-force" | "buoyancy" | "thrust" | "velocity" | "acceleration" | "momentum" | "moment"
+  | "angular-velocity" | "angular-acceleration" | "rotation-direction"
   | "local-axis" | "angle-arc" | "length-dimension" | "radius-dimension" | "center-of-mass"
   | "point-label" | "construction-line" | "text";
 

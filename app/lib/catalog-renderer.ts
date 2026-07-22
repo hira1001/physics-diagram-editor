@@ -69,6 +69,32 @@ function drawCatalogSurface(ctx: CanvasRenderingContext2D, width: number, label:
   drawText(ctx, label, 0, rough ? 24 : 18);
 }
 
+function rotationalArrow(ctx: CanvasRenderingContext2D, width: number, height: number, label: string, elementRotation: number) {
+  const radius = Math.min(width, height) * .36;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, Math.PI * .25, Math.PI * 1.85);
+  ctx.stroke();
+  ctx.save();
+  ctx.rotate(Math.PI * 1.85);
+  ctx.translate(radius, 0);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-12, -6);
+  ctx.lineTo(-12, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  if (label) {
+    ctx.save();
+    ctx.translate(-radius * .85, -radius - 12);
+    ctx.rotate(-elementRotation);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, 0, 0);
+    ctx.restore();
+  }
+}
+
 export function drawDiagramElement(
   ctx: CanvasRenderingContext2D,
   element: DiagramElement,
@@ -98,6 +124,8 @@ export function drawDiagramElement(
       ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, Math.min(w, h) / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#18202b"; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill(); drawText(ctx, element.label, 0, 8); break;
     case "disk":
       ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, Math.min(w, h) / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); line(ctx, -w * .35, 0, w * .35, 0); line(ctx, 0, -h * .35, 0, h * .35); ctx.fillStyle = "#18202b"; drawText(ctx, element.label, w * .22, -h * .18); break;
+    case "cylinder":
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.ellipse(0, -h * .32, w * .46, h * .16, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); line(ctx, -w * .46, -h * .32, -w * .46, h * .32); line(ctx, w * .46, -h * .32, w * .46, h * .32); ctx.beginPath(); ctx.ellipse(0, h * .32, w * .46, h * .16, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#18202b"; drawText(ctx, element.label); break;
     case "wedge":
       ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(-w / 2, h / 2); ctx.lineTo(w / 2, h / 2); ctx.lineTo(w / 2, -h / 2); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#18202b"; drawText(ctx, element.label, w * .18, h * .16); break;
     case "cart":
@@ -178,8 +206,8 @@ export function drawDiagramElement(
     case "force": case "gravity": case "normal-force": case "friction-force": case "tension": case "spring-force":
     case "drag-force": case "buoyancy": case "thrust": case "velocity": case "acceleration": case "momentum":
       arrow(ctx, w, element.label, element.rotation * Math.PI / 180); break;
-    case "moment":
-      ctx.beginPath(); ctx.arc(0, 0, Math.min(w, h) * .36, Math.PI * .25, Math.PI * 1.85); ctx.stroke(); ctx.save(); ctx.rotate(Math.PI * 1.85); ctx.translate(Math.min(w, h) * .36, 0); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-12, -6); ctx.lineTo(-12, 6); ctx.closePath(); ctx.fill(); ctx.restore(); drawText(ctx, element.label); break;
+    case "moment": case "angular-velocity": case "angular-acceleration": case "rotation-direction":
+      rotationalArrow(ctx, w, h, element.label, element.rotation * Math.PI / 180); break;
 
     case "local-axis":
       arrow(ctx, w * .8, "x"); ctx.save(); ctx.rotate(-Math.PI / 2); arrow(ctx, h * .8, "y"); ctx.restore(); break;

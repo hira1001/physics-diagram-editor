@@ -2,7 +2,8 @@ import type { Constraint, DiagramElement, DiagramElementKind, Variable, Variable
 import { catalogEntry, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 
 const connectionKinds = new Set<DiagramElementKind>(["string", "rope", "cable", "light-rod", "spring", "damper", "strut"]);
-const vectorKinds = new Set<DiagramElementKind>(["force", "gravity", "normal-force", "friction-force", "tension", "spring-force", "drag-force", "buoyancy", "thrust", "velocity", "acceleration", "momentum", "moment"]);
+const rotationalVectorKinds = new Set<DiagramElementKind>(["moment", "angular-velocity", "angular-acceleration", "rotation-direction"]);
+const vectorKinds = new Set<DiagramElementKind>(["force", "gravity", "normal-force", "friction-force", "tension", "spring-force", "drag-force", "buoyancy", "thrust", "velocity", "acceleration", "momentum", ...rotationalVectorKinds]);
 
 export function isConnectionElement(kind: DiagramElementKind) {
   return connectionKinds.has(kind);
@@ -29,6 +30,7 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
     const target: DiagramElement | undefined = rawTarget && isConnectionElement(rawTarget.kind) ? resolveDiagramElement(rawTarget, elements) : rawTarget;
     if (target) {
       if (isVectorElement(element.kind)) {
+        if (rotationalVectorKinds.has(element.kind)) return { ...element, x: target.x, y: target.y };
         const radians = element.rotation * Math.PI / 180;
         return {
           ...element,
@@ -77,13 +79,15 @@ export function createReferencedElement(kind: DiagramElementKind, target: Diagra
   return resolveDiagramElement(element, [target, element]);
 }
 
-const bodyKinds = new Set<DiagramElementKind>(["point-mass", "block", "sphere", "disk", "wedge", "cart"]);
+const bodyKinds = new Set<DiagramElementKind>(["point-mass", "block", "sphere", "disk", "cylinder", "wedge", "cart"]);
 
 export function contextCandidatesForElement(element: DiagramElement): DiagramElementKind[] {
   if (bodyKinds.has(element.kind)) {
+    const rotationalBody = ["sphere", "disk", "cylinder"].includes(element.kind);
     return [
       "gravity", "normal-force", "friction-force", "tension", "force", "velocity", "acceleration",
-      ...(["sphere", "disk", "wedge", "cart"].includes(element.kind) ? ["moment" as const] : []),
+      ...(["sphere", "disk", "cylinder", "wedge", "cart"].includes(element.kind) ? ["moment" as const] : []),
+      ...(rotationalBody ? ["angular-velocity" as const, "angular-acceleration" as const, "rotation-direction" as const, "radius-dimension" as const] : []),
     ];
   }
   const surface = catalogSurfacePreset(element.kind);
@@ -98,7 +102,7 @@ export function contextCandidatesForElement(element: DiagramElement): DiagramEle
   if (element.kind === "spring") return ["spring-force", "length-dimension"];
   if (element.kind === "damper") return ["force", "length-dimension"];
   if (["straight-track", "circular-track", "curved-track", "projectile-path"].includes(element.kind)) return ["velocity", "acceleration", "local-axis"];
-  if (["sphere", "disk", "wheel-axle", "rotation-axis"].includes(element.kind)) return ["moment", "radius-dimension"];
+  if (["wheel-axle", "rotation-axis"].includes(element.kind)) return ["moment", "angular-velocity", "angular-acceleration", "rotation-direction", "radius-dimension"];
   return [];
 }
 
@@ -115,7 +119,7 @@ export function variableTypeForElement(kind: DiagramElementKind): VariableType {
   if (kind === "spring" || kind === "damper") return "coefficient";
   if (["string", "rope", "cable", "light-rod", "strut"].includes(kind)) return "vector";
   if (kind === "length-dimension" || kind === "radius-dimension") return "length";
-  if (["point-mass", "block", "sphere", "disk", "wedge", "cart"].includes(kind)) return "mass";
+  if (["point-mass", "block", "sphere", "disk", "cylinder", "wedge", "cart"].includes(kind)) return "mass";
   return "scalar";
 }
 
@@ -127,6 +131,12 @@ export function createVariableForElement(element: DiagramElement, id = globalThi
       ? { symbol: "c", unit: "N·s/m" }
       : element.kind === "moment"
         ? { symbol: element.label || "M", unit: "N·m" }
+      : element.kind === "angular-velocity"
+        ? { symbol: element.label || "ω", unit: "rad/s" }
+      : element.kind === "angular-acceleration"
+        ? { symbol: element.label || "α", unit: "rad/s²" }
+      : element.kind === "rotation-direction"
+        ? { symbol: element.label || "回転", unit: "" }
       : ["string", "rope", "cable"].includes(element.kind)
         ? { symbol: "T", unit: "N" }
         : ["light-rod", "strut"].includes(element.kind)

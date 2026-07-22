@@ -49,6 +49,19 @@ export function addCatalogElementsToPptx(slide: PptxSlideLike, shapeType: PptxSh
     const height = Math.max(0.08, element.height * INCHES_PER_UNIT);
     const line = { color: "18202B", width: Math.max(0.1, element.lineWidth * .75) };
 
+    if (["moment", "angular-velocity", "angular-acceleration", "rotation-direction"].includes(element.kind)) {
+      const radius = Math.min(element.width, element.height) * .36;
+      let previous = localPoint(element, Math.cos(Math.PI * .25) * radius, Math.sin(Math.PI * .25) * radius);
+      for (let index = 1; index <= 18; index += 1) {
+        const angle = Math.PI * .25 + (Math.PI * 1.6 * index / 18);
+        const current = localPoint(element, Math.cos(angle) * radius, Math.sin(angle) * radius);
+        slide.addShape(shapeType.line, { objectName: `${objectName}:arc`, x: previous.x, y: previous.y, w: current.x - previous.x, h: current.y - previous.y, line: { ...line, endArrowType: index === 18 ? "triangle" : undefined } });
+        previous = current;
+      }
+      if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - width * .55, y: centerY - height * .58, w: 0.6, h: 0.32, fontFace: "Cambria Math", fontSize: element.fontSize * .75, italic: true, align: "center", margin: 0 });
+      continue;
+    }
+
     if (isVectorElement(element.kind)) {
       const start = point(element, -element.width / 2);
       const end = point(element, element.width / 2);
@@ -75,6 +88,16 @@ export function addCatalogElementsToPptx(slide: PptxSlideLike, shapeType: PptxSh
         slide.addShape(shapeType.line, { objectName, x: start.x, y: start.y, w: end.x - start.x, h: end.y - start.y, line });
       }
       if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - 0.3, y: centerY - 0.35, w: 0.6, h: 0.3, fontFace: "Cambria Math", fontSize: element.fontSize * .75, italic: true, align: "center", margin: 0 });
+      continue;
+    }
+
+    if (element.kind === "cylinder") {
+      const ellipseHeight = Math.max(0.08, height * .28);
+      slide.addShape(shapeType.ellipse, { objectName: `${objectName}:top`, x: centerX - width / 2, y: centerY - height * .38, w: width, h: ellipseHeight, fill: { color: "FFFFFF" }, line });
+      slide.addShape(shapeType.line, { objectName: `${objectName}:left`, x: centerX - width / 2, y: centerY - height * .24, w: 0, h: height * .62, line });
+      slide.addShape(shapeType.line, { objectName: `${objectName}:right`, x: centerX + width / 2, y: centerY - height * .24, w: 0, h: height * .62, line });
+      slide.addShape(shapeType.ellipse, { objectName: `${objectName}:bottom`, x: centerX - width / 2, y: centerY + height * .24, w: width, h: ellipseHeight, fill: { color: "FFFFFF" }, line });
+      if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - 0.4, y: centerY - 0.18, w: 0.8, h: 0.35, align: "center", fontFace: "Cambria Math", fontSize: element.fontSize * .75, italic: true, margin: 0 });
       continue;
     }
 

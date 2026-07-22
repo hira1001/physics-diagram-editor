@@ -31,6 +31,15 @@ describe("PHY-075 standard component catalog", () => {
     }
   });
 
+  it("keeps every object and rotational annotation from the catalog requirements independently placeable", () => {
+    const byName = new Map(PHYSICS_COMPONENT_CATALOG.map((item) => [item.name, item.kind]));
+    expect(byName.get("円板")).toBe("disk");
+    expect(byName.get("円柱")).toBe("cylinder");
+    expect(byName.get("角速度")).toBe("angular-velocity");
+    expect(byName.get("角加速度")).toBe("angular-acceleration");
+    expect(byName.get("回転方向")).toBe("rotation-direction");
+  });
+
   it.each([
     ["曲面接触", "curved-surface"],
     ["固定端", "fixed-end"],

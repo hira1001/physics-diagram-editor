@@ -52,6 +52,18 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     expect(createReferencedElement("friction-force", roughIncline, "friction-incline")).toMatchObject({ referenceTargetId: roughIncline.id, rotation: -30 });
   });
 
+  it("keeps rotational quantities centered on a moving disk and assigns angular units", () => {
+    const disk = createDiagramElement("disk", 200, 180, "disk");
+    const omega = createReferencedElement("angular-velocity", disk, "omega");
+    const alpha = createReferencedElement("angular-acceleration", disk, "alpha");
+    const movedDisk = { ...disk, x: 340, y: 260 };
+
+    expect(contextCandidatesForElement(disk)).toEqual(expect.arrayContaining(["force", "moment", "angular-velocity", "angular-acceleration", "rotation-direction", "radius-dimension"]));
+    expect(resolveDiagramElement(omega, [movedDisk, omega])).toMatchObject({ x: 340, y: 260 });
+    expect(createVariableForElement(omega)).toMatchObject({ symbol: "ω", unit: "rad/s", type: "vector" });
+    expect(createVariableForElement(alpha)).toMatchObject({ symbol: "α", unit: "rad/s²", type: "vector" });
+  });
+
   it("decomposes a vector into referenced x/y components with one shared variable", () => {
     const body = createDiagramElement("block", 100, 100, "body-components");
     const force = createReferencedElement("force", body, "force-components");

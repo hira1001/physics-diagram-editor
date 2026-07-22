@@ -105,7 +105,12 @@ export function PhysicsEditor() {
   const [exportBusy, setExportBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
+  const editorRootRef = useRef<HTMLDivElement>(null);
   const activePage = workspace.pages.find((page) => page.id === workspace.activePageId) ?? workspace.pages[0];
+
+  useEffect(() => {
+    editorRootRef.current?.setAttribute("data-hydrated", "true");
+  }, []);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
@@ -491,6 +496,7 @@ export function PhysicsEditor() {
   return (
     <div
       className={`physics-editor density-${workspace.density}`}
+      ref={editorRootRef}
       style={{
         "--panel-left": `${workspace.leftPanelWidth}px`,
         "--panel-right": `${workspace.rightPanelWidth}px`,

@@ -6,6 +6,7 @@ function escapeXml(value: string) {
 }
 
 const vectorKinds = new Set(["force", "gravity", "normal-force", "friction-force", "tension", "spring-force", "drag-force", "buoyancy", "thrust", "velocity", "acceleration", "momentum"]);
+const rotationalVectorKinds = new Set(["moment", "angular-velocity", "angular-acceleration", "rotation-direction"]);
 const circularKinds = new Set(["sphere", "disk", "fixed-pulley", "movable-pulley", "wheel-axle", "rotation-axis", "circular-track"]);
 const connectionKinds = new Set(["string", "rope", "cable", "light-rod", "straight-track", "construction-line", "strut"]);
 
@@ -36,7 +37,11 @@ export function diagramElementToSvg(element: DiagramElement) {
   const common = `fill="none" stroke="#18202b" stroke-width="${lineWidth}"`;
   let body = "";
 
-  if (vectorKinds.has(element.kind)) {
+  if (rotationalVectorKinds.has(element.kind)) {
+    const labelX = -w * .31;
+    const labelY = -h * .48;
+    body = `<path d="M${w * .3},${-h * .15} A${w * .35},${h * .35} 0 1 1 ${-w * .15},${-h * .3}" ${common} marker-end="url(#arrow)"/><text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="${fontSize}" font-style="italic" transform="rotate(${-element.rotation} ${labelX} ${labelY})">${label}</text>`;
+  } else if (vectorKinds.has(element.kind)) {
     const radians = element.rotation * Math.PI / 180;
     const labelX = w / 2 + 16 * Math.cos(radians) - 10 * Math.sin(radians);
     const labelY = -16 * Math.sin(radians) - 10 * Math.cos(radians);
@@ -52,13 +57,13 @@ export function diagramElementToSvg(element: DiagramElement) {
     switch (element.kind) {
       case "point-mass": body = `<circle cx="0" cy="0" r="7" fill="#18202b"/><text x="18" y="-10" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "block": body = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><text x="${-w * .2}" y="7" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
+      case "cylinder": body = `<ellipse cx="0" cy="${-h * .32}" rx="${w * .46}" ry="${h * .16}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><path d="M${-w * .46},${-h * .32} L${-w * .46},${h * .32} M${w * .46},${-h * .32} L${w * .46},${h * .32}" ${common}/><ellipse cx="0" cy="${h * .32}" rx="${w * .46}" ry="${h * .16}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><text x="0" y="7" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "wedge": body = `<path d="M${-w / 2},${h / 2} L${w / 2},${h / 2} L${w / 2},${-h / 2} Z" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><text x="${w * .18}" y="${h * .16}" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "cart": body = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h * .65}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><circle cx="${-w * .3}" cy="${h * .3}" r="${h * .14}" fill="#18202b"/><circle cx="${w * .3}" cy="${h * .3}" r="${h * .14}" fill="#18202b"/><text x="0" y="${-h * .1}" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "smooth-floor": case "smooth-wall": case "smooth-incline": body = surfaceBody(w, lineWidth, fontSize, label, false); break;
       case "rough-floor": case "rough-wall": case "rough-incline": body = surfaceBody(w, lineWidth, fontSize, label, true); break;
       case "spring": body = `<polyline points="${springPath(w)}" ${common}/><text x="0" y="-19" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "damper": body = `<line x1="${-w / 2}" y1="0" x2="${-w * .15}" y2="0" ${common}/><rect x="${-w * .15}" y="${-h * .28}" width="${w * .3}" height="${h * .56}" ${common}/><line x1="0" y1="${-h * .45}" x2="0" y2="${h * .45}" ${common}/><line x1="${w * .15}" y1="0" x2="${w / 2}" y2="0" ${common}/><text x="0" y="${-h * .6}" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
-      case "moment": body = `<path d="M${w * .3},${-h * .15} A${w * .35},${h * .35} 0 1 1 ${-w * .15},${-h * .3}" ${common} marker-end="url(#arrow)"/><text x="0" y="7" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "local-axis": body = `<line x1="0" y1="0" x2="${w * .4}" y2="0" ${common} marker-end="url(#arrow)"/><line x1="0" y1="0" x2="0" y2="${-h * .4}" ${common} marker-end="url(#arrow)"/><text x="${w * .43}" y="5" font-size="${fontSize}">x</text><text x="-8" y="${-h * .43}" font-size="${fontSize}">y</text>`; break;
       case "angle-arc": body = `<path d="M0,0 L${w / 2},0 M0,0 L${w * .35},${-h * .35} M${w * .3},0 A${w * .3},${h * .3} 0 0 0 ${w * .21},${-h * .21}" ${common}/><text x="${w * .3}" y="${-h * .12}" font-size="${fontSize}" font-style="italic">${label}</text>`; break;
       case "length-dimension": body = `<path d="M${-w / 2},0 L${w / 2},0 M${-w / 2},-10 L${-w / 2},10 M${w / 2},-10 L${w / 2},10" ${common}/><text x="0" y="-14" text-anchor="middle" font-size="${fontSize}" font-style="italic">${label}</text>`; break;

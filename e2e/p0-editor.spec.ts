@@ -6,10 +6,13 @@ import { readFile } from "node:fs/promises";
 import JSZip from "jszip";
 import { PNG } from "pngjs";
 
+const browserErrors = new WeakMap<Page, string[]>();
+
 async function openCleanEditor(page: Page) {
   await page.goto("/");
   await page.evaluate(() => window.localStorage.clear());
   await page.reload();
+  await expect(page.locator(".physics-editor")).toHaveAttribute("data-hydrated", "true");
   await expect(page.getByRole("banner")).toBeVisible();
   const skip = page.getByRole("button", { name: "スキップ", exact: true });
   if (await skip.isVisible()) await skip.click();
@@ -31,7 +34,18 @@ async function dragCanvasPoint(page: Page, box: { x: number; y: number }, point:
 }
 
 test.beforeEach(async ({ page }) => {
+  const errors: string[] = [];
+  browserErrors.set(page, errors);
+  page.on("console", (message) => {
+    if (message.type() === "error" || message.type() === "warning") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
   await openCleanEditor(page);
+});
+
+test.afterEach(async ({ page }) => {
+  await page.waitForTimeout(50);
+  expect(browserErrors.get(page) ?? []).toEqual([]);
 });
 
 test("SHL-001/003/019: editor shell contains only functional drawing controls", async ({ page }) => {
@@ -729,11 +743,45 @@ test("PHY-075: every standard component name and alias is discoverable and every
   for (const [index, item] of PHYSICS_COMPONENT_CATALOG.entries()) {
     await librarySearch.fill(item.name);
     await page.locator(".catalog-row").filter({ hasText: item.name }).first().click();
-    await canvas.click({ position: { x: 70 + index % 11 * 55, y: 390 + Math.floor(index / 11) * 45 } });
+    await canvas.click({ position: { x: 55 + index % 12 * 52, y: 210 + Math.floor(index / 12) % 4 * 70 } });
   }
 
   await page.getByRole("tab", { name: "構造", exact: true }).click();
   await expect(page.locator(".catalog-structure")).toHaveCount(PHYSICS_COMPONENT_CATALOG.length);
+});
+
+test("PHY-054/072: disk, cylinder, and rotational quantities are distinct editable physics parts", async ({ page }) => {
+  const librarySearch = page.getByPlaceholder("部品を検索", { exact: true });
+  const canvas = page.getByTestId("editor-canvas");
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+
+  await page.getByRole("button", { name: "図を追加", exact: true }).click();
+  await librarySearch.fill("円板");
+  await page.locator(".catalog-row").filter({ hasText: "円板" }).click();
+  await canvas.click({ position: { x: 240, y: 280 } });
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("円板");
+  await expect(inspector.getByRole("button", { name: "F", exact: true })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "M", exact: true })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "ω", exact: true })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "α", exact: true })).toBeVisible();
+  await inspector.getByRole("button", { name: "ω", exact: true }).click();
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("角速度");
+  await expect(inspector.getByRole("combobox", { name: "ベクトルの作用対象", exact: true })).not.toHaveValue("");
+
+  await librarySearch.fill("円柱");
+  await page.locator(".catalog-row").filter({ hasText: "円柱" }).click();
+  await canvas.click({ position: { x: 500, y: 280 } });
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("円柱");
+  await expect(inspector.getByRole("button", { name: "α", exact: true })).toBeVisible();
+  await inspector.getByRole("button", { name: "α", exact: true }).click();
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("角加速度");
+  await expect(inspector.getByRole("combobox", { name: "ベクトルの作用対象", exact: true })).not.toHaveValue("");
+
+  await canvas.click({ position: { x: 650, y: 470 } });
+  await expect(page.getByText("保存済み", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await page.reload();
+  await expect(page.locator(".physics-editor")).toHaveAttribute("data-hydrated", "true");
+  await expect(canvas).toHaveScreenshot("catalog-rotational-parts.png", { maxDiffPixels: 0 });
 });
 
 test("OUT-007/010: PPTX download is valid and keeps catalog parts as separate named objects", async ({ page }) => {
