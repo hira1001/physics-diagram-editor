@@ -545,6 +545,47 @@ kbd {
   font-weight: 700;
 }
 
+.full-width-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  margin: 6px 0;
+  border: 1px dashed #3178d4;
+  border-radius: 5px;
+  background: #f0f7ff;
+  color: #1f5fae;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.full-width-btn:hover {
+  background: #e2eefb;
+  border-style: solid;
+}
+
+.inline-action-btn {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inline-action-btn:hover {
+  border-color: #b14840;
+  color: #b14840;
+  background: #fdf2f2;
+}
+
 .mini-template {
   position: relative;
   width: 44px;

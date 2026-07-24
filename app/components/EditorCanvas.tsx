@@ -832,12 +832,8 @@ export function EditorCanvas({
     const startPoint = dragStartPointRef.current;
 
     if ((dragMode === "diagram" || dragMode === "freebody") && startScene && startPoint) {
-      let nextX = startScene.diagramOffsetX + (point.x - startPoint.x) / geometry.scale;
-      let nextY = startScene.diagramOffsetY + (point.y - startPoint.y) / geometry.scale;
-      if (scene.snapEnabled && !event.altKey) {
-        nextX = Math.round(nextX / 10) * 10;
-        nextY = Math.round(nextY / 10) * 10;
-      }
+      const nextX = startScene.diagramOffsetX + (point.x - startPoint.x) / geometry.scale;
+      const nextY = startScene.diagramOffsetY + (point.y - startPoint.y) / geometry.scale;
       onSceneChange({ diagramOffsetX: nextX, diagramOffsetY: nextY }, false);
       return;
     }
@@ -849,9 +845,10 @@ export function EditorCanvas({
         const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
         const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
         const rad = Math.atan2(contentY - element.y, contentX - element.x);
-        let deg = Math.round((rad * 180 / Math.PI + 90) % 360);
+        let deg = (rad * 180 / Math.PI + 90) % 360;
         if (deg < 0) deg += 360;
-        if (scene.snapEnabled && !event.altKey) deg = Math.round(deg / 15) * 15;
+        if (scene.snapEnabled && !event.altKey) deg = Math.round(deg / 5) * 5;
+        else deg = Math.round(deg * 10) / 10;
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, rotation: deg } : item) }, false);
         return;
       }
@@ -863,12 +860,8 @@ export function EditorCanvas({
       if (element) {
         const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
         const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
-        let newW = Math.max(16, Math.round(Math.abs(contentX - element.x) * 2));
-        let newH = Math.max(16, Math.round(Math.abs(contentY - element.y) * 2));
-        if (scene.snapEnabled && !event.altKey) {
-          newW = Math.round(newW / 10) * 10;
-          newH = Math.round(newH / 10) * 10;
-        }
+        const newW = Math.max(16, Math.round(Math.abs(contentX - element.x) * 2));
+        const newH = Math.max(16, Math.round(Math.abs(contentY - element.y) * 2));
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newW, height: newH } : item) }, false);
         return;
       }
@@ -953,7 +946,7 @@ export function EditorCanvas({
         const newWidth = clamp(Math.hypot(dx, dy) * 2, 16, 1500);
         let newRotation = Math.atan2(dy, dx) * 180 / Math.PI;
         if (scene.snapEnabled && !event.altKey) {
-          newRotation = Math.round(newRotation / 15) * 15;
+          newRotation = Math.round(newRotation / 5) * 5;
         }
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newWidth, rotation: newRotation } : item) }, false);
         return;
@@ -964,6 +957,22 @@ export function EditorCanvas({
       const elementId = scene.selectedId.slice("element:".length);
       const original = startScene.elements.find((item) => item.id === elementId);
       if (!original) return;
+
+      if (original.groupId) {
+        const dx = (point.x - startPoint.x) / geometry.scale;
+        const dy = (point.y - startPoint.y) / geometry.scale;
+        const updatedElements = startScene.elements.map((item) => {
+          if (item.groupId === original.groupId) {
+            const startElem = startScene.elements.find((e) => e.id === item.id);
+            if (!startElem) return item;
+            return { ...item, x: startElem.x + dx, y: startElem.y + dy };
+          }
+          return item;
+        });
+        onSceneChange({ elements: updatedElements }, false);
+        return;
+      }
+
       if (original.referenceTargetId && isVectorElement(original.kind)) {
         const target = scene.elements.find((item) => item.id === original.referenceTargetId);
         if (!target) return;
@@ -976,14 +985,10 @@ export function EditorCanvas({
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: nextWidth, rotation: nextRotation } : item) }, false);
         return;
       }
-      let nextX = original.x + (point.x - startPoint.x) / geometry.scale;
-      let nextY = original.y + (point.y - startPoint.y) / geometry.scale;
-      if (scene.snapEnabled && !event.altKey) {
-        nextX = Math.round(nextX / 10) * 10;
-        nextY = Math.round(nextY / 10) * 10;
-      }
+      const nextX = original.x + (point.x - startPoint.x) / geometry.scale;
+      const nextY = original.y + (point.y - startPoint.y) / geometry.scale;
       let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY };
-      if (isConnectionElement(original.kind) && scene.snapEnabled && !event.altKey) {
+      if (isConnectionElement(original.kind)) {
         const radians = original.rotation * Math.PI / 180;
         const halfW = original.width / 2;
         const startPos = { x: nextX - Math.cos(radians) * halfW, y: nextY - Math.sin(radians) * halfW };
@@ -1170,6 +1175,7 @@ export function EditorCanvas({
       <canvas
         data-testid="editor-canvas"
         ref={canvasRef}
+        style={{ touchAction: "none" }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
