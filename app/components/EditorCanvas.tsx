@@ -626,7 +626,7 @@ export function EditorCanvas({
           setDragMode("element-rotate");
         } else if (distance(point, resizeHandleWorld) < 18) {
           setDragMode("element-resize");
-        } else if (!element.locked && !(element.startTargetId && element.endTargetId)) {
+        } else if (!element.locked) {
           setDragMode("element");
         }
       }

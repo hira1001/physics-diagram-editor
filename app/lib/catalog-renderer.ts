@@ -219,7 +219,7 @@ export function drawDiagramElement(
       rotationalArrow(ctx, w, h, element.label, rotRad, lx, ly); break;
 
     case "local-axis":
-      arrow(ctx, w * .8, "x", rotRad, lx, ly); ctx.save(); ctx.rotate(-Math.PI / 2); arrow(ctx, h * .8, "y", rotRad - Math.PI / 2, lx, ly); ctx.restore(); break;
+      arrow(ctx, w * .8, "x", rotRad, lx, ly); ctx.save(); ctx.rotate(-Math.PI / 2); arrow(ctx, h * .8, "y", rotRad, lx, ly); ctx.restore(); break;
     case "angle-arc":
       line(ctx, 0, 0, w / 2, 0); line(ctx, 0, 0, w * .35, -h * .35); ctx.beginPath(); ctx.arc(0, 0, Math.min(w, h) * .3, -Math.PI / 4, 0); ctx.stroke(); drawText(ctx, element.label, w * .28, -h * .12, lx, ly, rotRad); break;
     case "length-dimension":
