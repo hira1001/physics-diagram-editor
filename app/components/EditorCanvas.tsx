@@ -35,6 +35,9 @@ export interface Geometry {
   forceFrictionEnd: Point;
   forceGravityEnd: Point;
   forceNormalEnd: Point;
+  forceGravityLabelPoint: Point;
+  forceNormalLabelPoint: Point;
+  forceFrictionLabelPoint: Point;
   massLabelPoint: Point;
   origin: Point;
   scale: number;
@@ -60,7 +63,7 @@ function distanceToSegment(point: Point, start: Point, end: Point) {
   return distance(point, { x: start.x + t * dx, y: start.y + t * dy });
 }
 
-export function createGeometry(width: number, height: number, scene: SceneState, zoom: number): Geometry {
+export function createGeometry(width: number, height: number, scene: SceneState, zoom: number): Geometry & { forceGravityLabelPoint: Point; forceNormalLabelPoint: Point; forceFrictionLabelPoint: Point } {
   const artboard = {
     x: 42,
     y: 30,
@@ -109,6 +112,20 @@ export function createGeometry(width: number, height: number, scene: SceneState,
     x: start.x + Math.cos(labelAngle) * 104 * scale + scene.angleLabelOffsetX * scale,
     y: start.y + Math.sin(labelAngle) * 104 * scale + scene.angleLabelOffsetY * scale,
   };
+
+  const forceGravityLabelPoint = {
+    x: forceGravityEnd.x + 18 * scale + (scene.forceGravityLabelOffsetX ?? 0) * scale,
+    y: forceGravityEnd.y + (scene.forceGravityLabelOffsetY ?? 0) * scale,
+  };
+  const forceNormalLabelPoint = {
+    x: forceNormalEnd.x + 18 * scale + (scene.forceNormalLabelOffsetX ?? 0) * scale,
+    y: forceNormalEnd.y + (scene.forceNormalLabelOffsetY ?? 0) * scale,
+  };
+  const forceFrictionLabelPoint = {
+    x: forceFrictionEnd.x + 18 * scale + (scene.forceFrictionLabelOffsetX ?? 0) * scale,
+    y: forceFrictionEnd.y + (scene.forceFrictionLabelOffsetY ?? 0) * scale,
+  };
+
   return {
     anglePoint,
     annotationPoint: {
@@ -122,6 +139,9 @@ export function createGeometry(width: number, height: number, scene: SceneState,
     forceFrictionEnd,
     forceGravityEnd,
     forceNormalEnd,
+    forceGravityLabelPoint,
+    forceNormalLabelPoint,
+    forceFrictionLabelPoint,
     massLabelPoint,
     origin: toPoint(
       (scene.surfaceKind === "wall" ? (scene.flipped ? 300 : 700) : 150) + scene.diagramOffsetX,
@@ -134,7 +154,7 @@ export function createGeometry(width: number, height: number, scene: SceneState,
   };
 }
 
-function arrow(ctx: CanvasRenderingContext2D, start: Point, end: Point, label: string, scale: number, color = "#18202b") {
+function arrow(ctx: CanvasRenderingContext2D, start: Point, end: Point, label: string, scale: number, color = "#18202b", labelPointOverride?: Point) {
   const angle = Math.atan2(end.y - start.y, end.x - start.x);
   const head = 11 * scale;
   ctx.save();
@@ -152,8 +172,8 @@ function arrow(ctx: CanvasRenderingContext2D, start: Point, end: Point, label: s
   ctx.closePath();
   ctx.fill();
   ctx.font = `italic ${Math.max(17, 24 * scale)}px Georgia, serif`;
-  const labelX = end.x + Math.cos(angle - Math.PI / 2) * 18 * scale;
-  const labelY = end.y + Math.sin(angle - Math.PI / 2) * 18 * scale;
+  const labelX = labelPointOverride ? labelPointOverride.x : end.x + Math.cos(angle - Math.PI / 2) * 18 * scale;
+  const labelY = labelPointOverride ? labelPointOverride.y : end.y + Math.sin(angle - Math.PI / 2) * 18 * scale;
   ctx.fillText(label, labelX, labelY);
   ctx.restore();
 }
@@ -230,9 +250,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.lineWidth = 2.2 * scale;
     ctx.fillRect(center.x - boxWidth / 2, center.y - boxHeight / 2, boxWidth, boxHeight);
     ctx.strokeRect(center.x - boxWidth / 2, center.y - boxHeight / 2, boxWidth, boxHeight);
-    if (scene.showGravity) arrow(ctx, { x: center.x, y: center.y + boxHeight / 2 }, { x: center.x, y: center.y + 150 * scale }, "mg", scale);
-    if (scene.showNormal) arrow(ctx, { x: center.x, y: center.y - boxHeight / 2 }, { x: center.x, y: center.y - 150 * scale }, "N", scale);
-    if (scene.showFriction) arrow(ctx, { x: center.x + boxWidth / 2, y: center.y }, { x: center.x + 165 * scale, y: center.y }, "f", scale);
+    if (scene.showGravity) arrow(ctx, { x: center.x, y: center.y + boxHeight / 2 }, { x: center.x, y: center.y + 150 * scale }, "mg", scale, undefined, geometry.forceGravityLabelPoint);
+    if (scene.showNormal) arrow(ctx, { x: center.x, y: center.y - boxHeight / 2 }, { x: center.x, y: center.y - 150 * scale }, "N", scale, undefined, geometry.forceNormalLabelPoint);
+    if (scene.showFriction) arrow(ctx, { x: center.x + boxWidth / 2, y: center.y }, { x: center.x + 165 * scale, y: center.y }, "f", scale, undefined, geometry.forceFrictionLabelPoint);
     ctx.fillStyle = "#18202b";
     ctx.font = `italic ${Math.max(21, 28 * scale)}px Georgia, serif`;
     ctx.textAlign = "center";
@@ -320,9 +340,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
 
   // Vectors are semantic foreground elements. Draw them only after the object
   // body so their shaft and arrowhead can never disappear behind its fill.
-  if (scene.showGravity) arrow(ctx, blockCenter, geometry.forceGravityEnd, "mg", scale, scene.selectedId === "force-gravity" ? "#3178d4" : undefined);
-  if (scene.showNormal) arrow(ctx, blockCenter, geometry.forceNormalEnd, "N", scale, scene.selectedId === "force-normal" ? "#3178d4" : undefined);
-  if (scene.showFriction) arrow(ctx, blockCenter, geometry.forceFrictionEnd, "f", scale, hasSurfaceConflict(scene) ? "#b14840" : scene.selectedId === "force-friction" ? "#3178d4" : undefined);
+  if (scene.showGravity) arrow(ctx, blockCenter, geometry.forceGravityEnd, "mg", scale, scene.selectedId === "force-gravity" ? "#3178d4" : undefined, geometry.forceGravityLabelPoint);
+  if (scene.showNormal) arrow(ctx, blockCenter, geometry.forceNormalEnd, "N", scale, scene.selectedId === "force-normal" ? "#3178d4" : undefined, geometry.forceNormalLabelPoint);
+  if (scene.showFriction) arrow(ctx, blockCenter, geometry.forceFrictionEnd, "f", scale, hasSurfaceConflict(scene) ? "#b14840" : scene.selectedId === "force-friction" ? "#3178d4" : undefined, geometry.forceFrictionLabelPoint);
 
   // Diagram labels are the top-most content layer, above objects and vectors.
   ctx.save();
@@ -342,6 +362,19 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.arc(geometry.massLabelPoint.x, geometry.massLabelPoint.y, 6, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+  }
+
+  if (scene.selectedId === "force-gravity-label") {
+    ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#3178d4"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(geometry.forceGravityLabelPoint.x, geometry.forceGravityLabelPoint.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  if (scene.selectedId === "force-normal-label") {
+    ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#3178d4"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(geometry.forceNormalLabelPoint.x, geometry.forceNormalLabelPoint.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  if (scene.selectedId === "force-friction-label") {
+    ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#3178d4"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(geometry.forceFrictionLabelPoint.x, geometry.forceFrictionLabelPoint.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 
   if (scene.showAxis) {
@@ -382,9 +415,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.fillText(scene.annotationText, geometry.annotationPoint.x, geometry.annotationPoint.y);
   }
 
-  for (const element of [...scene.elements.filter((item) => !isVectorElement(item.kind)), ...scene.elements.filter((item) => isVectorElement(item.kind))]) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}`);
+  for (const element of [...scene.elements.filter((item) => !isVectorElement(item.kind)), ...scene.elements.filter((item) => isVectorElement(item.kind))]) drawDiagramElement(ctx, resolveDiagramElement(element, scene.elements), geometry.contentOrigin, scale, scene.selectedId === `element:${element.id}` || scene.selectedId === `element-label:${element.id}`);
 
-  if (scene.selectedId && scene.selectedId.startsWith("force-")) {
+  if (scene.selectedId && scene.selectedId.startsWith("force-") && !scene.selectedId.endsWith("-label")) {
     const endpoint = scene.selectedId === "force-gravity" ? geometry.forceGravityEnd : scene.selectedId === "force-normal" ? geometry.forceNormalEnd : geometry.forceFrictionEnd;
     ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#3178d4"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(endpoint.x, endpoint.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -398,6 +431,31 @@ function hitTest(point: Point, geometry: Geometry, scene: SceneState): Selection
     x: (point.x - geometry.contentOrigin.x) / geometry.scale,
     y: (point.y - geometry.contentOrigin.y) / geometry.scale,
   };
+
+  // Check rotation & resize handles on currently selected element first
+  if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
+    const element = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
+    if (element) {
+      const rad = element.rotation * Math.PI / 180;
+      const rotateHandleWorld = {
+        x: geometry.contentOrigin.x + (element.x + (0) * Math.cos(rad) - (-element.height / 2 - 28) * Math.sin(rad)) * geometry.scale,
+        y: geometry.contentOrigin.y + (element.y + (0) * Math.sin(rad) + (-element.height / 2 - 28) * Math.cos(rad)) * geometry.scale,
+      };
+      if (distance(point, rotateHandleWorld) < 18) return scene.selectedId;
+
+      const resizeHandleWorld = {
+        x: geometry.contentOrigin.x + (element.x + (element.width / 2 + 8) * Math.cos(rad) - (element.height / 2 + 8) * Math.sin(rad)) * geometry.scale,
+        y: geometry.contentOrigin.y + (element.y + (element.width / 2 + 8) * Math.sin(rad) + (element.height / 2 + 8) * Math.cos(rad)) * geometry.scale,
+      };
+      if (distance(point, resizeHandleWorld) < 18) return scene.selectedId;
+    }
+  }
+
+  // Check force labels
+  if (scene.showGravity && distance(point, geometry.forceGravityLabelPoint) < 24) return "force-gravity-label";
+  if (scene.showNormal && distance(point, geometry.forceNormalLabelPoint) < 24) return "force-normal-label";
+  if (scene.showFriction && distance(point, geometry.forceFrictionLabelPoint) < 24) return "force-friction-label";
+
   if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
     const selectedElement = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
     if (selectedElement && diagramElementContainsPoint(resolveDiagramElement(selectedElement, scene.elements), contentPoint)) return scene.selectedId;
@@ -438,7 +496,7 @@ export function EditorCanvas({
   const dragStartPointRef = useRef<Point | null>(null);
   const [size, setSize] = useState({ width: 900, height: 620 });
   const [pointer, setPointer] = useState<Point>({ x: 0, y: 0 });
-  const [dragMode, setDragMode] = useState<"angle" | "angle-label" | "block" | "diagram" | "element" | "force" | "freebody" | "mass-label" | "text" | null>(null);
+  const [dragMode, setDragMode] = useState<"angle" | "angle-label" | "block" | "diagram" | "element" | "element-label" | "element-rotate" | "element-resize" | "force" | "force-gravity-label" | "force-normal-label" | "force-friction-label" | "freebody" | "mass-label" | "text" | null>(null);
   const [suggestion, setSuggestion] = useState<Point | null>(null);
 
   useEffect(() => {
@@ -530,14 +588,36 @@ export function EditorCanvas({
     if (!hit) return;
     dragStartSceneRef.current = { ...scene };
     dragStartPointRef.current = point;
+
     if (hit.startsWith("element:")) {
       const element = scene.elements.find((item) => `element:${item.id}` === hit);
-      if (element && !element.locked && !(element.startTargetId && element.endTargetId)) setDragMode("element");
+      if (element) {
+        const rad = element.rotation * Math.PI / 180;
+        const rotateHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x + (0) * Math.cos(rad) - (-element.height / 2 - 28) * Math.sin(rad)) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y + (0) * Math.sin(rad) + (-element.height / 2 - 28) * Math.cos(rad)) * geometry.scale,
+        };
+        const resizeHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x + (element.width / 2 + 8) * Math.cos(rad) - (element.height / 2 + 8) * Math.sin(rad)) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y + (element.width / 2 + 8) * Math.sin(rad) + (element.height / 2 + 8) * Math.cos(rad)) * geometry.scale,
+        };
+
+        if (distance(point, rotateHandleWorld) < 18) {
+          setDragMode("element-rotate");
+        } else if (distance(point, resizeHandleWorld) < 18) {
+          setDragMode("element-resize");
+        } else if (!element.locked && !(element.startTargetId && element.endTargetId)) {
+          setDragMode("element");
+        }
+      }
     }
     else if (hit === "incline" && scene.surfaceKind === "incline" && distance(point, geometry.end) < 32) setDragMode("angle");
     else if (hit === "incline") setDragMode("diagram");
     else if (hit === "angle") setDragMode("angle-label");
     else if (hit === "mass-label") setDragMode("mass-label");
+    else if (hit === "force-gravity-label") setDragMode("force-gravity-label");
+    else if (hit === "force-normal-label") setDragMode("force-normal-label");
+    else if (hit === "force-friction-label") setDragMode("force-friction-label");
     else if (hit === "text") setDragMode("text");
     else if (pageKind === "freebody" && hit === "block") setDragMode("freebody");
     else if (hit === "block") setDragMode("block");
@@ -604,6 +684,39 @@ export function EditorCanvas({
       onSceneChange({ diagramOffsetX: nextX, diagramOffsetY: nextY }, false);
       return;
     }
+
+    if (dragMode === "element-rotate" && startScene && typeof scene.selectedId === "string") {
+      const elementId = scene.selectedId.slice("element:".length);
+      const element = scene.elements.find((item) => item.id === elementId);
+      if (element) {
+        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
+        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
+        const rad = Math.atan2(contentY - element.y, contentX - element.x);
+        let deg = Math.round((rad * 180 / Math.PI + 90) % 360);
+        if (deg < 0) deg += 360;
+        if (scene.snapEnabled && !event.altKey) deg = Math.round(deg / 15) * 15;
+        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, rotation: deg } : item) }, false);
+        return;
+      }
+    }
+
+    if (dragMode === "element-resize" && startScene && typeof scene.selectedId === "string") {
+      const elementId = scene.selectedId.slice("element:".length);
+      const element = scene.elements.find((item) => item.id === elementId);
+      if (element) {
+        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
+        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
+        let newW = Math.max(16, Math.round(Math.abs(contentX - element.x) * 2));
+        let newH = Math.max(16, Math.round(Math.abs(contentY - element.y) * 2));
+        if (scene.snapEnabled && !event.altKey) {
+          newW = Math.round(newW / 10) * 10;
+          newH = Math.round(newH / 10) * 10;
+        }
+        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newW, height: newH } : item) }, false);
+        return;
+      }
+    }
+
     if (dragMode === "element" && startScene && startPoint && typeof scene.selectedId === "string") {
       const elementId = scene.selectedId.slice("element:".length);
       const original = startScene.elements.find((item) => item.id === elementId);
@@ -629,6 +742,29 @@ export function EditorCanvas({
       onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, x: nextX, y: nextY } : item) }, false);
       return;
     }
+
+    if (dragMode === "force-gravity-label" && startScene && startPoint) {
+      onSceneChange({
+        forceGravityLabelOffsetX: (startScene.forceGravityLabelOffsetX ?? 0) + (point.x - startPoint.x) / geometry.scale,
+        forceGravityLabelOffsetY: (startScene.forceGravityLabelOffsetY ?? 0) + (point.y - startPoint.y) / geometry.scale,
+      }, false);
+      return;
+    }
+    if (dragMode === "force-normal-label" && startScene && startPoint) {
+      onSceneChange({
+        forceNormalLabelOffsetX: (startScene.forceNormalLabelOffsetX ?? 0) + (point.x - startPoint.x) / geometry.scale,
+        forceNormalLabelOffsetY: (startScene.forceNormalLabelOffsetY ?? 0) + (point.y - startPoint.y) / geometry.scale,
+      }, false);
+      return;
+    }
+    if (dragMode === "force-friction-label" && startScene && startPoint) {
+      onSceneChange({
+        forceFrictionLabelOffsetX: (startScene.forceFrictionLabelOffsetX ?? 0) + (point.x - startPoint.x) / geometry.scale,
+        forceFrictionLabelOffsetY: (startScene.forceFrictionLabelOffsetY ?? 0) + (point.y - startPoint.y) / geometry.scale,
+      }, false);
+      return;
+    }
+
     if (dragMode === "angle-label" && startScene && startPoint) {
       onSceneChange({
         angleLabelOffsetX: startScene.angleLabelOffsetX + (point.x - startPoint.x) / geometry.scale,
