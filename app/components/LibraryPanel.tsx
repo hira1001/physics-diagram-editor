@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import {
   Axis3D,
   Box,
-  ChevronDown,
   ChevronRight,
   CircleDot,
+  Droplets,
   Eye,
   EyeOff,
   Gauge,
@@ -16,15 +17,17 @@ import {
   Orbit,
   Search,
   Slash,
-  Waves,
+  Sparkles,
   Type,
   Unlock,
+  Waves,
 } from "lucide-react";
 import type { SceneState, SelectionId, TemplateId, ToolId } from "@/app/lib/editor-types";
 import { surfaceDisplayName } from "@/app/lib/physics-rules";
 import { componentToolId, PHYSICS_COMPONENT_CATALOG, searchComponentCatalog, type ComponentCategory } from "@/app/lib/component-catalog";
 
 type LibraryTab = "add" | "structure";
+type CategoryKey = "featured" | ComponentCategory;
 
 interface LibraryPanelProps {
   activeTab: LibraryTab;
@@ -40,6 +43,24 @@ interface LibraryPanelProps {
   onTabChange: (tab: LibraryTab) => void;
   onToolPick: (tool: ToolId) => void;
 }
+
+const CATEGORIES: Array<{
+  id: CategoryKey;
+  name: string;
+  shortName: string;
+  icon: typeof Box;
+}> = [
+  { id: "featured", name: "おすすめ", shortName: "おすすめ", icon: Sparkles },
+  { id: "物体", name: "剛体・物体", shortName: "物体", icon: Box },
+  { id: "接触面", name: "接触面", shortName: "接触面", icon: Slash },
+  { id: "支持", name: "支持・固定", shortName: "支持", icon: Magnet },
+  { id: "接続", name: "接続・ひも", shortName: "接続", icon: Waves },
+  { id: "機械要素", name: "滑車・回転", shortName: "滑車", icon: CircleDot },
+  { id: "軌道", name: "軌道・線", shortName: "軌道", icon: Orbit },
+  { id: "流体", name: "流体・容器", shortName: "流体", icon: Droplets },
+  { id: "ベクトル", name: "ベクトル・力", shortName: "ベクトル", icon: MoveUpRight },
+  { id: "注釈", name: "注釈・寸法", shortName: "注釈", icon: Gauge },
+];
 
 const libraryItems: Array<{
   id: ToolId;
@@ -78,7 +99,7 @@ const categoryIcons: Record<ComponentCategory, typeof Box> = {
   接続: Waves,
   機械要素: CircleDot,
   軌道: Orbit,
-  流体: Waves,
+  流体: Droplets,
   ベクトル: MoveUpRight,
   注釈: Gauge,
 };
@@ -97,11 +118,15 @@ export function LibraryPanel({
   onTabChange,
   onToolPick,
 }: LibraryPanelProps) {
-  const filteredItems = libraryItems.filter((item) => item.name.includes(query.trim()));
-  const catalogItems = searchComponentCatalog(query);
-  const catalogGroups = [...new Set(PHYSICS_COMPONENT_CATALOG.map((item) => item.category))]
-    .map((category) => ({ category, items: catalogItems.filter((item) => item.category === category) }))
-    .filter((group) => group.items.length > 0);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryKey>("featured");
+
+  const searchResults = query.trim() ? searchComponentCatalog(query) : null;
+  const filteredQuickItems = libraryItems.filter((item) => item.name.includes(query.trim()));
+
+  const activeCategoryDef = CATEGORIES.find((item) => item.id === selectedCategory)!;
+  const categoryComponents = selectedCategory === "featured"
+    ? []
+    : PHYSICS_COMPONENT_CATALOG.filter((item) => item.category === selectedCategory);
 
   return (
     <aside className="library-panel" aria-label="部品と図の構造">
@@ -120,74 +145,172 @@ export function LibraryPanel({
             <Search size={14} />
             <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="部品を検索" />
           </label>
-          <section className="library-section">
-            <div className="section-heading"><ChevronDown size={14} />おすすめ</div>
-            <button className="template-row featured" type="button" onClick={() => onApplyTemplate("incline")}>
-              <span className="mini-template incline-template" aria-hidden="true"><i /><b /></span>
-              <span><strong>斜面上の物体</strong><small>θ・m・力を連動</small></span>
-            </button>
-            <button className="template-row" type="button" onClick={() => onApplyTemplate("pulley")}>
-              <span className="mini-template pulley-template" aria-hidden="true"><i /><b /></span>
-              <span><strong>二物体と滑車</strong><small>糸と張力を接続</small></span>
-            </button>
-            <button className="template-row" type="button" onClick={() => onApplyTemplate("rough-wall")}>
-              <span className="mini-template incline-template" aria-hidden="true"><i /><b /></span>
-              <span><strong>粗い壁と物体</strong><small>N・f・μを連動</small></span>
-            </button>
-          </section>
-          <section className="library-section grow">
-            <div className="section-heading"><ChevronDown size={14} /><span>部品</span><b className="section-count">{PHYSICS_COMPONENT_CATALOG.length + libraryItems.length}</b></div>
-            <div className="component-list">
-              {filteredItems.map((item) => {
-                const Icon = item.icon;
+
+          <div className="category-container">
+            <nav className="category-rail" aria-label="部品カテゴリ一覧">
+              {CATEGORIES.map((cat) => {
+                const Icon = cat.icon;
+                const count = cat.id === "featured"
+                  ? 7
+                  : PHYSICS_COMPONENT_CATALOG.filter((item) => item.category === cat.id).length;
+                const isActive = !query.trim() && selectedCategory === cat.id;
+
                 return (
                   <button
-                    className={`component-row ${activeTool === item.id ? "active" : ""}`}
-                    key={item.id}
+                    className={`category-rail-btn ${isActive ? "active" : ""}`}
+                    key={cat.id}
                     type="button"
-                    draggable
-                    onDragStart={(event) => {
-                      event.dataTransfer.effectAllowed = "copy";
-                      event.dataTransfer.setData("application/x-physics-tool", item.id);
-                      onToolPick(item.id);
+                    onClick={() => {
+                      setSelectedCategory(cat.id);
+                      onQueryChange("");
                     }}
-                    onClick={() => onToolPick(item.id)}
-                    title={`${item.name} — ${item.meta}`}
+                    title={`${cat.name} (${count}個)`}
                   >
-                    <Icon size={17} />
-                    <span>{item.name}</span>
-                    {item.meta ? <kbd>{item.meta}</kbd> : <span />}
+                    <Icon size={16} />
+                    <span>{cat.shortName}</span>
+                    <span className="badge">{count}</span>
                   </button>
                 );
               })}
-              {catalogGroups.map((group) => {
-                const CategoryIcon = categoryIcons[group.category];
-                return <div className="catalog-group" key={group.category}>
-                  <div className="catalog-category"><CategoryIcon size={13} /><span>{group.category}</span><b>{group.items.length}</b></div>
-                  {group.items.map((item) => {
-                    const toolId = componentToolId(item.kind);
-                    return <button
-                      className={`component-row catalog-row ${activeTool === toolId ? "active" : ""}`}
-                      key={item.kind}
-                      type="button"
-                      draggable
-                      onDragStart={(event) => {
-                        event.dataTransfer.effectAllowed = "copy";
-                        event.dataTransfer.setData("application/x-physics-tool", toolId);
-                        onToolPick(toolId);
-                      }}
-                      onClick={() => onToolPick(toolId)}
-                      title={`${item.name} — ${item.physics.join("・")}`}
-                    >
-                      <CategoryIcon size={16} />
-                      <span>{item.name}</span>
-                      {item.defaultLabel ? <code>{item.defaultLabel}</code> : <span />}
-                    </button>;
-                  })}
-                </div>;
-              })}
+            </nav>
+
+            <div className="category-subpanel">
+              {searchResults !== null ? (
+                <>
+                  <div className="category-subpanel-title">
+                    <span>検索結果</span>
+                    <span className="section-count">{searchResults.length + filteredQuickItems.length}</span>
+                  </div>
+                  <div className="component-list">
+                    {filteredQuickItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          className={`component-row ${activeTool === item.id ? "active" : ""}`}
+                          key={item.id}
+                          type="button"
+                          draggable
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = "copy";
+                            event.dataTransfer.setData("application/x-physics-tool", item.id);
+                            onToolPick(item.id);
+                          }}
+                          onClick={() => onToolPick(item.id)}
+                          title={`${item.name} — ${item.meta}`}
+                        >
+                          <Icon size={17} />
+                          <span>{item.name}</span>
+                          {item.meta ? <kbd>{item.meta}</kbd> : <span />}
+                        </button>
+                      );
+                    })}
+                    {searchResults.map((item) => {
+                      const toolId = componentToolId(item.kind);
+                      const CategoryIcon = categoryIcons[item.category];
+                      return (
+                        <button
+                          className={`component-row catalog-row ${activeTool === toolId ? "active" : ""}`}
+                          key={item.kind}
+                          type="button"
+                          draggable
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = "copy";
+                            event.dataTransfer.setData("application/x-physics-tool", toolId);
+                            onToolPick(toolId);
+                          }}
+                          onClick={() => onToolPick(toolId)}
+                          title={`${item.name} — ${item.physics.join("・")}`}
+                        >
+                          <CategoryIcon size={16} />
+                          <span>{item.name}</span>
+                          {item.defaultLabel ? <code>{item.defaultLabel}</code> : <span />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : selectedCategory === "featured" ? (
+                <>
+                  <section className="library-section">
+                    <div className="section-heading">テンプレート</div>
+                    <button className="template-row featured" type="button" onClick={() => onApplyTemplate("incline")}>
+                      <span className="mini-template incline-template" aria-hidden="true"><i /><b /></span>
+                      <span><strong>斜面上の物体</strong><small>θ・m・力を連動</small></span>
+                    </button>
+                    <button className="template-row" type="button" onClick={() => onApplyTemplate("pulley")}>
+                      <span className="mini-template pulley-template" aria-hidden="true"><i /><b /></span>
+                      <span><strong>二物体と滑車</strong><small>糸と張力を接続</small></span>
+                    </button>
+                    <button className="template-row" type="button" onClick={() => onApplyTemplate("rough-wall")}>
+                      <span className="mini-template incline-template" aria-hidden="true"><i /><b /></span>
+                      <span><strong>粗い壁と物体</strong><small>N・f・μを連動</small></span>
+                    </button>
+                  </section>
+
+                  <section className="library-section grow">
+                    <div className="section-heading">基本ツール</div>
+                    <div className="component-list">
+                      {libraryItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            className={`component-row ${activeTool === item.id ? "active" : ""}`}
+                            key={item.id}
+                            type="button"
+                            draggable
+                            onDragStart={(event) => {
+                              event.dataTransfer.effectAllowed = "copy";
+                              event.dataTransfer.setData("application/x-physics-tool", item.id);
+                              onToolPick(item.id);
+                            }}
+                            onClick={() => onToolPick(item.id)}
+                            title={`${item.name} — ${item.meta}`}
+                          >
+                            <Icon size={17} />
+                            <span>{item.name}</span>
+                            {item.meta ? <kbd>{item.meta}</kbd> : <span />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </>
+              ) : (
+                <>
+                  <div className="category-subpanel-title">
+                    <span>{activeCategoryDef.name}</span>
+                    <span className="section-count">{categoryComponents.length}個</span>
+                  </div>
+                  <div className="component-list vertical-catalog">
+                    {categoryComponents.map((item) => {
+                      const toolId = componentToolId(item.kind);
+                      const CategoryIcon = categoryIcons[item.category];
+                      return (
+                        <button
+                          className={`component-row catalog-row ${activeTool === toolId ? "active" : ""}`}
+                          key={item.kind}
+                          type="button"
+                          draggable
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = "copy";
+                            event.dataTransfer.setData("application/x-physics-tool", toolId);
+                            onToolPick(toolId);
+                          }}
+                          onClick={() => onToolPick(toolId)}
+                          title={`${item.name} — ${item.physics.join("・")}`}
+                        >
+                          <CategoryIcon size={16} />
+                          <span>{item.name}</span>
+                          {item.defaultLabel ? <code>{item.defaultLabel}</code> : <span />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
-          </section>
+          </div>
+
           <button className="library-footer" type="button" onClick={onOpenTemplates}>
             <Orbit size={15} />テンプレートを開く<span>8</span>
           </button>
