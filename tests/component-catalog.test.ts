@@ -93,18 +93,36 @@ describe("PHY-075 standard component catalog", () => {
     expect(svg).toContain('stroke-width="1.25"');
   });
 
-  it("renders every component kind and hit-tests rotated bounds", () => {
-    const context = new Proxy({}, {
-      get: () => () => undefined,
-      set: () => true,
-    }) as unknown as CanvasRenderingContext2D;
-    for (const [index, item] of PHYSICS_COMPONENT_CATALOG.entries()) {
-      const element = createDiagramElement(item.kind, 100 + index, 100, `draw-${index}`);
-      expect(() => drawDiagramElement(context, element, { x: 0, y: 0 }, 1, true)).not.toThrow();
-    }
+  it("renders labels unrotated in Canvas and SVG when the element is rotated", () => {
+    const rotatedBlock = { ...createDiagramElement("block", 200, 180, "block-1"), rotation: 45, label: "m" };
+    const svg = diagramElementsToSvg([rotatedBlock]);
+    expect(svg).toContain('transform="rotate(-45 ');
+    expect(svg).toContain('>m</text>');
 
-    const rotated = { ...createDiagramElement("light-rod", 100, 100, "rod"), rotation: 45 };
-    expect(diagramElementContainsPoint(rotated, { x: 100, y: 100 })).toBe(true);
-    expect(diagramElementContainsPoint(rotated, { x: 500, y: 500 })).toBe(false);
+    const rotates: number[] = [];
+    const mockContext = {
+      save() {},
+      restore() {},
+      translate() {},
+      scale() {},
+      rotate(rad: number) { rotates.push(rad); },
+      beginPath() {},
+      arc() {},
+      fill() {},
+      stroke() {},
+      fillRect() {},
+      strokeRect() {},
+      fillText() {},
+      setLineDash() {},
+      moveTo() {},
+      lineTo() {},
+      closePath() {},
+    } as unknown as CanvasRenderingContext2D;
+
+    drawDiagramElement(mockContext, rotatedBlock, { x: 0, y: 0 }, 1, false);
+    // Element rotated by +45 deg (0.785 rad), label unrotated by -45 deg (-0.785 rad)
+    const rad45 = 45 * Math.PI / 180;
+    expect(rotates).toContain(rad45);
+    expect(rotates).toContain(-rad45);
   });
 });

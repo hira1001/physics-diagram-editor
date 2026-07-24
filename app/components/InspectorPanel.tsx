@@ -15,8 +15,8 @@ import { NumericInput } from "@/app/components/NumericInput";
 import { VariableInput } from "@/app/components/VariableInput";
 import type { DiagramElement, PageKind, SceneState } from "@/app/lib/editor-types";
 import { hasSurfaceConflict, surfaceDisplayName } from "@/app/lib/physics-rules";
-import { catalogEntry, catalogSurfaceDefaultRotation, catalogSurfaceKind, catalogSurfacePreset } from "@/app/lib/component-catalog";
-import { contextCandidatesForElement, createReferencedElement, createVariableForElement, findElementDependencies, isConnectionElement, isVectorElement, removeElementWithDependencies } from "@/app/lib/diagram-model";
+import { catalogEntry, catalogSurfaceDefaultRotation, catalogSurfaceKind, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
+import { contextCandidatesForElement, createConnection, createReferencedElement, createVariableForElement, findElementDependencies, isConnectionElement, isVectorElement, removeElementWithDependencies } from "@/app/lib/diagram-model";
 
 interface InspectorPanelProps {
   scene: SceneState;
@@ -263,9 +263,41 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
         </div> : null}
       </section>
 
-      {selectedElement && contextCandidates.length ? <section className={`inspector-section ${openSections.suggestions ? "open" : ""}`}>
-        <button aria-expanded={openSections.suggestions} className="inspector-heading" type="button" onClick={() => toggleSection("suggestions")}><span>物理候補</span><ChevronDown size={14} /></button>
+      {selectedElement ? <section className={`inspector-section ${openSections.suggestions ? "open" : ""}`}>
+        <button aria-expanded={openSections.suggestions} className="inspector-heading" type="button" onClick={() => toggleSection("suggestions")}><span>物理候補・要素接続</span><ChevronDown size={14} /></button>
         {openSections.suggestions ? <div className="quick-grid physics-candidates">
+          {!isConnectionElement(selectedElement.kind) ? <>
+            <button type="button" onClick={() => {
+              const other = scene.elements.find((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind))
+                ?? createDiagramElement("fixed-end", selectedElement.x - 130, selectedElement.y);
+              const hasOther = scene.elements.some((item) => item.id === other.id);
+              const connection = createConnection("string", selectedElement, other);
+              onSceneChange({
+                elements: hasOther ? [...scene.elements, connection] : [...scene.elements, other, connection],
+                selectedId: `element:${connection.id}`,
+              });
+            }}><Link2 size={15} />ひもで接続</button>
+            <button type="button" onClick={() => {
+              const other = scene.elements.find((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind))
+                ?? createDiagramElement("fixed-end", selectedElement.x - 130, selectedElement.y);
+              const hasOther = scene.elements.some((item) => item.id === other.id);
+              const connection = createConnection("spring", selectedElement, other);
+              onSceneChange({
+                elements: hasOther ? [...scene.elements, connection] : [...scene.elements, other, connection],
+                selectedId: `element:${connection.id}`,
+              });
+            }}><Link2 size={15} />ばねで接続</button>
+            <button type="button" onClick={() => {
+              const other = scene.elements.find((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind))
+                ?? createDiagramElement("fixed-end", selectedElement.x - 130, selectedElement.y);
+              const hasOther = scene.elements.some((item) => item.id === other.id);
+              const connection = createConnection("light-rod", selectedElement, other);
+              onSceneChange({
+                elements: hasOther ? [...scene.elements, connection] : [...scene.elements, other, connection],
+                selectedId: `element:${connection.id}`,
+              });
+            }}><Link2 size={15} />棒で接続</button>
+          </> : null}
           {contextCandidates.map((kind) => {
             const definition = catalogEntry(kind);
             const exists = scene.elements.some((item) => item.kind === kind && item.referenceTargetId === selectedElement.id);

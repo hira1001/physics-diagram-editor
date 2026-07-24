@@ -8,7 +8,27 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
-import { decomposeVectorElement, findElementDependencies, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
+import { decomposeVectorElement, findElementDependencies, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
+import type { DiagramElement } from "@/app/lib/editor-types";
+
+function findNearbyTargetElement(
+  point: { x: number; y: number },
+  elements: readonly DiagramElement[],
+  excludeId?: string,
+  maxDistance = 45,
+) {
+  let closest: DiagramElement | null = null;
+  let minDistance = maxDistance;
+  for (const item of elements) {
+    if (item.id === excludeId || isConnectionElement(item.kind)) continue;
+    const dist = Math.hypot(item.x - point.x, item.y - point.y);
+    if (dist < minDistance) {
+      minDistance = dist;
+      closest = item;
+    }
+  }
+  return closest;
+}
 
 interface EditorCanvasProps {
   activeTool: ToolId;
@@ -633,11 +653,22 @@ export function EditorCanvas({
     const rect = event.currentTarget.getBoundingClientRect();
     const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     if (catalogDefinition) {
-      const element = createDiagramElement(
+      let element = createDiagramElement(
         catalogDefinition.kind,
         clamp((point.x - geometry.contentOrigin.x) / geometry.scale, 0, 1000),
         clamp((point.y - geometry.contentOrigin.y) / geometry.scale, 0, 650),
       );
+      if (isConnectionElement(element.kind)) {
+        const radians = element.rotation * Math.PI / 180;
+        const halfW = element.width / 2;
+        const startPos = { x: element.x - Math.cos(radians) * halfW, y: element.y - Math.sin(radians) * halfW };
+        const endPos = { x: element.x + Math.cos(radians) * halfW, y: element.y + Math.sin(radians) * halfW };
+        const startTarget = findNearbyTargetElement(startPos, scene.elements, element.id, 55);
+        const endTarget = findNearbyTargetElement(endPos, scene.elements, element.id, 55);
+        if (startTarget) element.startTargetId = startTarget.id;
+        if (endTarget && endTarget.id !== element.startTargetId) element.endTargetId = endTarget.id;
+        element = resolveDiagramElement(element, scene.elements);
+      }
       onSceneChange({ elements: [...scene.elements, element], selectedId: `element:${element.id}` });
       onToolComplete();
       return;
@@ -739,7 +770,19 @@ export function EditorCanvas({
         nextX = Math.round(nextX / 10) * 10;
         nextY = Math.round(nextY / 10) * 10;
       }
-      onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, x: nextX, y: nextY } : item) }, false);
+      let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY };
+      if (isConnectionElement(original.kind) && scene.snapEnabled && !event.altKey) {
+        const radians = original.rotation * Math.PI / 180;
+        const halfW = original.width / 2;
+        const startPos = { x: nextX - Math.cos(radians) * halfW, y: nextY - Math.sin(radians) * halfW };
+        const endPos = { x: nextX + Math.cos(radians) * halfW, y: nextY + Math.sin(radians) * halfW };
+        const startTarget = findNearbyTargetElement(startPos, scene.elements, elementId, 45);
+        const endTarget = findNearbyTargetElement(endPos, scene.elements, elementId, 45);
+        updatedElement.startTargetId = startTarget ? startTarget.id : null;
+        updatedElement.endTargetId = endTarget ? endTarget.id : null;
+        updatedElement = resolveDiagramElement(updatedElement, scene.elements);
+      }
+      onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updatedElement : item) }, false);
       return;
     }
 

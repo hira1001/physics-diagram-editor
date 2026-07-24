@@ -126,6 +126,6 @@ export function addCatalogElementsToPptx(slide: PptxSlideLike, shapeType: PptxSh
         line,
       });
     }
-    if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - 0.4, y: centerY - 0.18, w: 0.8, h: 0.35, align: "center", fontFace: "Cambria Math", fontSize: element.fontSize * .75, italic: true, margin: 0, rotate: lineLike ? 0 : element.rotation });
+    if (element.label) slide.addText(element.label, { objectName: `${objectName}:label`, x: centerX - 0.4, y: centerY - 0.18, w: 0.8, h: 0.35, align: "center", fontFace: "Cambria Math", fontSize: element.fontSize * .75, italic: true, margin: 0, rotate: 0 });
   }
 }
