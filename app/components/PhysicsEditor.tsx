@@ -24,6 +24,7 @@ import { TopBar } from "@/app/components/TopBar";
 import {
   INITIAL_SCENE,
   INITIAL_WORKSPACE,
+  type DiagramElement,
   type DiagramPage,
   type SceneState,
   type TemplateId,
@@ -36,9 +37,10 @@ import { inspectExportQuality } from "@/app/lib/export-quality";
 import { DEFAULT_EXPORT_SETTINGS, type ExportSettings } from "@/app/lib/export-types";
 import { addCatalogElementsToPptx } from "@/app/lib/catalog-pptx";
 import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/app/lib/workspace-storage";
+import { removeElementWithDependencies } from "@/app/lib/diagram-model";
+import { writeTextToClipboard } from "@/app/lib/clipboard";
 import { blockRotationDegrees, effectiveSurfaceAngle, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
 import { componentToolId, PHYSICS_COMPONENT_CATALOG } from "@/app/lib/component-catalog";
-import { writeTextToClipboard } from "@/app/lib/clipboard";
 
 type LibraryTab = "add" | "structure";
 type Flyout = "export" | "menu" | null;
@@ -84,6 +86,7 @@ function storageValuesMatch(left: string | null, right: string | null) {
 }
 
 export function PhysicsEditor() {
+  const clipboardRef = useRef<DiagramElement[] | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceState>(INITIAL_WORKSPACE);
   const workspaceRef = useRef(workspace);
   const lastPersistedRawRef = useRef<string | null>(null);
@@ -461,9 +464,120 @@ export function PhysicsEditor() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
         event.preventDefault(); if (event.shiftKey) redo(); else undo(); return;
       }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y") {
+        event.preventDefault(); redo(); return;
+      }
       if (event.key === "Escape") {
         setCommandOpen(false); setFlyout(null); setTemplateOpen(false); setActiveTool("select"); return;
       }
+
+      // Copy (Ctrl+C / Cmd+C)
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "c") {
+        if (isTyping) return;
+        event.preventDefault();
+        const selectedId = activePage.scene.selectedId;
+        if (typeof selectedId === "string" && selectedId.startsWith("element:")) {
+          const elementId = selectedId.slice("element:".length);
+          const elem = activePage.scene.elements.find((e) => e.id === elementId);
+          if (elem) {
+            clipboardRef.current = [{ ...elem }];
+            writeTextToClipboard(JSON.stringify([{ ...elem }])).catch(() => {});
+          }
+        }
+        return;
+      }
+
+      // Cut (Ctrl+X / Cmd+X)
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "x" && !isTyping) {
+        event.preventDefault();
+        const selectedId = activePage.scene.selectedId;
+        if (typeof selectedId === "string" && selectedId.startsWith("element:")) {
+          const elementId = selectedId.slice("element:".length);
+          const elem = activePage.scene.elements.find((e) => e.id === elementId);
+          if (elem) {
+            clipboardRef.current = [{ ...elem }];
+            writeTextToClipboard(JSON.stringify([{ ...elem }])).catch(() => {});
+            const result = removeElementWithDependencies(elementId, activePage.scene.elements, activePage.scene.variables, activePage.scene.constraints);
+            updateScene({ elements: result.elements, variables: result.variables, constraints: result.constraints, selectedId: null });
+          }
+        }
+        return;
+      }
+
+      // Paste (Ctrl+V / Cmd+V)
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "v") {
+        if (isTyping) return;
+        event.preventDefault();
+        if (clipboardRef.current && clipboardRef.current.length > 0) {
+          const pasted = clipboardRef.current.map((item) => ({
+            ...item,
+            id: globalThis.crypto?.randomUUID?.() ?? `elem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            x: item.x + 20,
+            y: item.y + 20,
+          }));
+          updateScene({
+            elements: [...activePage.scene.elements, ...pasted],
+            selectedId: `element:${pasted[0].id}`,
+          });
+        }
+        return;
+      }
+
+      // Select All (Ctrl+A / Cmd+A)
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && !isTyping) {
+        event.preventDefault();
+        if (activePage.scene.elements.length > 0) {
+          updateScene({ selectedId: `element:${activePage.scene.elements[0].id}` });
+        }
+        return;
+      }
+
+      // Delete / Backspace
+      if ((event.key === "Delete" || event.key === "Backspace") && !isTyping) {
+        event.preventDefault();
+        const selectedId = activePage.scene.selectedId;
+        if (typeof selectedId === "string" && selectedId.startsWith("element:")) {
+          const elementId = selectedId.slice("element:".length);
+          const result = removeElementWithDependencies(elementId, activePage.scene.elements, activePage.scene.variables, activePage.scene.constraints);
+          updateScene({ elements: result.elements, variables: result.variables, constraints: result.constraints, selectedId: null });
+        } else if (selectedId === "force-gravity") updateScene({ showGravity: false, selectedId: null });
+        else if (selectedId === "force-normal") updateScene({ showNormal: false, selectedId: null });
+        else if (selectedId === "force-friction") updateScene({ showFriction: false, selectedId: null });
+        else if (selectedId === "angle") updateScene({ showAngle: false, selectedId: null });
+        else if (selectedId === "axis") updateScene({ showAxis: false, selectedId: null });
+        else if (selectedId === "spring") updateScene({ showSpring: false, selectedId: null });
+        else if (selectedId === "pulley") updateScene({ showPulley: false, selectedId: null });
+        else if (selectedId === "text") updateScene({ showAnnotation: false, selectedId: null });
+        return;
+      }
+
+      // Arrow keys (Nudging)
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key) && !isTyping) {
+        event.preventDefault();
+        const step = event.shiftKey ? 10 : 1;
+        const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
+        const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+        const selectedId = activePage.scene.selectedId;
+
+        if (typeof selectedId === "string" && selectedId.startsWith("element:")) {
+          const elementId = selectedId.slice("element:".length);
+          updateScene({
+            elements: activePage.scene.elements.map((item) => item.id === elementId ? { ...item, x: item.x + dx, y: item.y + dy } : item),
+          });
+        } else if (selectedId === "mass-label") {
+          updateScene({ massLabelOffsetX: activePage.scene.massLabelOffsetX + dx, massLabelOffsetY: activePage.scene.massLabelOffsetY + dy });
+        } else if (selectedId === "angle") {
+          updateScene({ angleLabelOffsetX: activePage.scene.angleLabelOffsetX + dx, angleLabelOffsetY: activePage.scene.angleLabelOffsetY + dy });
+        } else if (selectedId === "force-gravity-label") {
+          updateScene({ forceGravityLabelOffsetX: (activePage.scene.forceGravityLabelOffsetX ?? 0) + dx, forceGravityLabelOffsetY: (activePage.scene.forceGravityLabelOffsetY ?? 0) + dy });
+        } else if (selectedId === "force-normal-label") {
+          updateScene({ forceNormalLabelOffsetX: (activePage.scene.forceNormalLabelOffsetX ?? 0) + dx, forceNormalLabelOffsetY: (activePage.scene.forceNormalLabelOffsetY ?? 0) + dy });
+        } else if (selectedId === "force-friction-label") {
+          updateScene({ forceFrictionLabelOffsetX: (activePage.scene.forceFrictionLabelOffsetX ?? 0) + dx, forceFrictionLabelOffsetY: (activePage.scene.forceFrictionLabelOffsetY ?? 0) + dy });
+        }
+        return;
+      }
+
       if (!isTyping) {
         const shortcuts: Record<string, ToolId> = { p: "incline", b: "block", f: "force", a: "angle", x: "axis", s: "spring", u: "pulley", t: "text", v: "select" };
         const tool = shortcuts[event.key.toLowerCase()];
@@ -473,7 +587,7 @@ export function PhysicsEditor() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activePage.scene.grid, redo, undo, updateScene]);
+  }, [activePage.scene.constraints, activePage.scene.elements, activePage.scene.forceFrictionLabelOffsetX, activePage.scene.forceFrictionLabelOffsetY, activePage.scene.forceGravityLabelOffsetX, activePage.scene.forceGravityLabelOffsetY, activePage.scene.forceNormalLabelOffsetX, activePage.scene.forceNormalLabelOffsetY, activePage.scene.grid, activePage.scene.massLabelOffsetX, activePage.scene.massLabelOffsetY, activePage.scene.angleLabelOffsetX, activePage.scene.angleLabelOffsetY, activePage.scene.selectedId, activePage.scene.variables, redo, undo, updateScene]);
 
   const handleToolPick = useCallback((tool: ToolId) => {
     setActiveTool(tool);
