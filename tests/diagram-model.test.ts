@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDiagramElement } from "@/app/lib/component-catalog";
+import { buildTemplateScene } from "@/app/lib/template-builder";
 import {
   createConnection,
   decomposeVectorElement,
@@ -100,5 +101,15 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     expect(removed.variables).toEqual([]);
     expect(removed.constraints).toEqual([]);
     expect(validateModelReferences(removed.elements, removed.variables, removed.constraints)).toEqual([]);
+  });
+
+  it("builds fully modular and editable DiagramElement scenes for all templates", () => {
+    for (const template of ["incline", "smooth-incline", "horizontal", "rough-wall", "smooth-wall", "pulley", "spring", "freebody"] as const) {
+      const scene = buildTemplateScene(template);
+      expect(scene.elements.length).toBeGreaterThan(0);
+      expect(scene.variables.length).toBeGreaterThan(0);
+      expect(scene.elements.every((item) => typeof item.id === "string" && typeof item.kind === "string")).toBe(true);
+      expect(validateModelReferences(scene.elements, scene.variables, scene.constraints)).toEqual([]);
+    }
   });
 });

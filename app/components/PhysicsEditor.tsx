@@ -41,6 +41,7 @@ import { removeElementWithDependencies } from "@/app/lib/diagram-model";
 import { writeTextToClipboard } from "@/app/lib/clipboard";
 import { blockRotationDegrees, effectiveSurfaceAngle, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
 import { componentToolId, PHYSICS_COMPONENT_CATALOG } from "@/app/lib/component-catalog";
+import { buildTemplateScene } from "@/app/lib/template-builder";
 
 type LibraryTab = "add" | "structure";
 type Flyout = "export" | "menu" | null;
@@ -272,33 +273,14 @@ export function PhysicsEditor() {
 
   const applyTemplate = useCallback((template: TemplateId) => {
     setTemplateOpen(false);
-    if (template === "freebody") {
-      addFreeBodyPage();
-      return;
-    }
     recordWorkspace(workspace);
-    const templateSurface: SurfacePreset = template === "horizontal"
-      ? { kind: "floor", roughness: "rough" }
-      : template === "rough-wall"
-        ? { kind: "wall", roughness: "rough" }
-        : template === "smooth-wall"
-          ? { kind: "wall", roughness: "smooth" }
-          : template === "smooth-incline"
-            ? { kind: "incline", roughness: "smooth" }
-            : { kind: "incline", roughness: "rough" };
-    const templateScene: SceneState = {
-      ...INITIAL_SCENE,
-      ...surfacePlacementPatch(templateSurface),
-      showPulley: template === "pulley",
-      showSpring: template === "spring",
-      selectedId: template === "pulley" ? "pulley" : template === "spring" ? "spring" : "incline",
-    };
+    const templateScene = buildTemplateScene(template);
     setWorkspace((current) => ({
       ...current,
-      pages: current.pages.map((page) => page.id === current.activePageId ? { ...page, kind: "incline", scene: templateScene } : page),
+      pages: current.pages.map((page) => page.id === current.activePageId ? { ...page, kind: template === "freebody" ? "freebody" : "incline", scene: templateScene } : page),
     }));
     setActiveTool("select");
-  }, [addFreeBodyPage, recordWorkspace, workspace]);
+  }, [recordWorkspace, workspace]);
 
   const exportPages = useMemo(() => exportSettings.range === "all" ? workspace.pages : [activePage], [activePage, exportSettings.range, workspace.pages]);
 
