@@ -23,6 +23,8 @@ export interface DiagramElement {
   id: string;
   kind: DiagramElementKind;
   label: string;
+  labelOffsetX?: number;
+  labelOffsetY?: number;
   lineWidth: number;
   locked: boolean;
   rotation: number;
@@ -62,14 +64,18 @@ export type SelectionId =
   | "block"
   | "mass-label"
   | "force-gravity"
+  | "force-gravity-label"
   | "force-normal"
+  | "force-normal-label"
   | "force-friction"
+  | "force-friction-label"
   | "angle"
   | "axis"
   | "spring"
   | "pulley"
   | "text"
   | `element:${string}`
+  | `element-label:${string}`
   | null;
 
 export type TemplateId = "horizontal" | "incline" | "pulley" | "rough-wall" | "smooth-incline" | "smooth-wall" | "spring" | "freebody";
@@ -107,6 +113,12 @@ export interface SceneState {
   diagramOffsetX: number;
   diagramOffsetY: number;
   forceScale: number;
+  forceGravityLabelOffsetX?: number;
+  forceGravityLabelOffsetY?: number;
+  forceNormalLabelOffsetX?: number;
+  forceNormalLabelOffsetY?: number;
+  forceFrictionLabelOffsetX?: number;
+  forceFrictionLabelOffsetY?: number;
   flipped: boolean;
   massLabel: string;
   massLabelOffsetX: number;

@@ -5,12 +5,12 @@ import { NumericInput } from "@/app/components/NumericInput";
 import type { SceneState } from "@/app/lib/editor-types";
 
 type NumericSceneKey = {
-  [Key in keyof SceneState]: SceneState[Key] extends number ? Key : never;
-}[keyof SceneState];
+  [Key in keyof SceneState]: NonNullable<SceneState[Key]> extends number ? Key : never;
+}[keyof SceneState] & keyof SceneState;
 
 type StringSceneKey = {
-  [Key in keyof SceneState]: SceneState[Key] extends string ? Key : never;
-}[keyof SceneState];
+  [Key in keyof SceneState]: NonNullable<SceneState[Key]> extends string ? Key : never;
+}[keyof SceneState] & keyof SceneState;
 
 interface SharedSceneInputProps {
   scene: SceneState;
@@ -24,13 +24,13 @@ interface SceneNumericInputProps extends SharedSceneInputProps, Omit<InputHTMLAt
 }
 
 export function SceneNumericInput({ scene, property, scale = 1, onCommitSnapshot, onSceneChange, ...props }: SceneNumericInputProps) {
-  const value = Number(scene[property]) * scale;
+  const value = Number(scene[property] ?? 0) * scale;
   return (
     <NumericInput
       {...props}
       value={value}
       onValueChange={(next) => onSceneChange({ [property]: next / scale } as Partial<SceneState>, false)}
-      onValueCommit={(_, initial) => onCommitSnapshot({ ...scene, [property]: initial / scale })}
+      onValueCommit={(_, initial) => onCommitSnapshot({ ...scene, [property]: initial / scale } as SceneState)}
       onValueCancel={(initial) => onSceneChange({ [property]: initial / scale } as Partial<SceneState>, false)}
     />
   );
@@ -41,14 +41,14 @@ interface SceneTextInputProps extends SharedSceneInputProps, Omit<InputHTMLAttri
 }
 
 export function SceneTextInput({ scene, property, onCommitSnapshot, onSceneChange, onBlur, onFocus, onKeyDown, ...props }: SceneTextInputProps) {
-  const initialRef = useRef(String(scene[property]));
+  const initialRef = useRef(String(scene[property] ?? ""));
   const cancelledRef = useRef(false);
   return (
     <input
       {...props}
-      value={String(scene[property])}
+      value={String(scene[property] ?? "")}
       onFocus={(event) => {
-        initialRef.current = String(scene[property]);
+        initialRef.current = String(scene[property] ?? "");
         cancelledRef.current = false;
         onFocus?.(event);
       }}
@@ -66,8 +66,8 @@ export function SceneTextInput({ scene, property, onCommitSnapshot, onSceneChang
         onKeyDown?.(event);
       }}
       onBlur={(event) => {
-        if (!cancelledRef.current && String(scene[property]) !== initialRef.current) {
-          onCommitSnapshot({ ...scene, [property]: initialRef.current });
+        if (!cancelledRef.current && String(scene[property] ?? "") !== initialRef.current) {
+          onCommitSnapshot({ ...scene, [property]: initialRef.current } as SceneState);
         }
         cancelledRef.current = false;
         onBlur?.(event);
