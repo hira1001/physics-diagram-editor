@@ -442,6 +442,97 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#3178d4"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(endpoint.x, endpoint.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
+
+  // Render selection handles for selected diagram elements
+  if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
+    const selectedElement = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
+    if (selectedElement) {
+      const resolved = resolveDiagramElement(selectedElement, scene.elements);
+      const rad = resolved.rotation * Math.PI / 180;
+      const halfW = resolved.width / 2;
+      const halfH = resolved.height / 2;
+
+      const rotateWorld = {
+        x: geometry.contentOrigin.x + (resolved.x + (0) * Math.cos(rad) - (-halfH - 28) * Math.sin(rad)) * scale,
+        y: geometry.contentOrigin.y + (resolved.y + (0) * Math.sin(rad) + (-halfH - 28) * Math.cos(rad)) * scale,
+      };
+      const resizeWorld = {
+        x: geometry.contentOrigin.x + (resolved.x + (halfW + 8) * Math.cos(rad) - (halfH + 8) * Math.sin(rad)) * scale,
+        y: geometry.contentOrigin.y + (resolved.y + (halfW + 8) * Math.sin(rad) + (halfH + 8) * Math.cos(rad)) * scale,
+      };
+
+      ctx.save();
+      ctx.strokeStyle = "#3178d4";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.translate(geometry.contentOrigin.x + resolved.x * scale, geometry.contentOrigin.y + resolved.y * scale);
+      ctx.rotate(rad);
+      ctx.strokeRect(-halfW * scale - 4, -halfH * scale - 4, resolved.width * scale + 8, resolved.height * scale + 8);
+      ctx.restore();
+
+      // Rotate handle (blue circle)
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#3178d4";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(rotateWorld.x, rotateWorld.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Resize handle (blue square)
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#3178d4";
+      ctx.lineWidth = 2;
+      ctx.fillRect(resizeWorld.x - 5, resizeWorld.y - 5, 10, 10);
+      ctx.strokeRect(resizeWorld.x - 5, resizeWorld.y - 5, 10, 10);
+
+      // Connection endpoint handles
+      if (isConnectionElement(resolved.kind)) {
+        const startWorld = {
+          x: geometry.contentOrigin.x + (resolved.x - Math.cos(rad) * halfW) * scale,
+          y: geometry.contentOrigin.y + (resolved.y - Math.sin(rad) * halfW) * scale,
+        };
+        const endWorld = {
+          x: geometry.contentOrigin.x + (resolved.x + Math.cos(rad) * halfW) * scale,
+          y: geometry.contentOrigin.y + (resolved.y + Math.sin(rad) * halfW) * scale,
+        };
+
+        // Start handle (green dot)
+        ctx.fillStyle = resolved.startTargetId ? "#22c55e" : "#ffffff";
+        ctx.strokeStyle = "#15803d";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(startWorld.x, startWorld.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // End handle (blue dot)
+        ctx.fillStyle = resolved.endTargetId ? "#3b82f6" : "#ffffff";
+        ctx.strokeStyle = "#1d4ed8";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(endWorld.x, endWorld.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Vector tip handle (red dot)
+      if (isVectorElement(resolved.kind)) {
+        const tipWorld = {
+          x: geometry.contentOrigin.x + (resolved.x + Math.cos(rad) * halfW) * scale,
+          y: geometry.contentOrigin.y + (resolved.y + Math.sin(rad) * halfW) * scale,
+        };
+        ctx.fillStyle = "#ef4444";
+        ctx.strokeStyle = "#b91c1c";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(tipWorld.x, tipWorld.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+  }
+
   ctx.restore();
   return geometry;
 }
@@ -452,7 +543,6 @@ function hitTest(point: Point, geometry: Geometry, scene: SceneState): Selection
     y: (point.y - geometry.contentOrigin.y) / geometry.scale,
   };
 
-  // Check rotation & resize handles on currently selected element first
   if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
     const element = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
     if (element) {
@@ -468,10 +558,32 @@ function hitTest(point: Point, geometry: Geometry, scene: SceneState): Selection
         y: geometry.contentOrigin.y + (element.y + (element.width / 2 + 8) * Math.sin(rad) + (element.height / 2 + 8) * Math.cos(rad)) * geometry.scale,
       };
       if (distance(point, resizeHandleWorld) < 18) return scene.selectedId;
+
+      if (isConnectionElement(element.kind)) {
+        const halfW = element.width / 2;
+        const startHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x - Math.cos(rad) * halfW) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y - Math.sin(rad) * halfW) * geometry.scale,
+        };
+        const endHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x + Math.cos(rad) * halfW) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y + Math.sin(rad) * halfW) * geometry.scale,
+        };
+        if (distance(point, startHandleWorld) < 18) return scene.selectedId;
+        if (distance(point, endHandleWorld) < 18) return scene.selectedId;
+      }
+
+      if (isVectorElement(element.kind)) {
+        const halfW = element.width / 2;
+        const tipHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x + Math.cos(rad) * halfW) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y + Math.sin(rad) * halfW) * geometry.scale,
+        };
+        if (distance(point, tipHandleWorld) < 18) return scene.selectedId;
+      }
     }
   }
 
-  // Check force labels
   if (scene.showGravity && distance(point, geometry.forceGravityLabelPoint) < 24) return "force-gravity-label";
   if (scene.showNormal && distance(point, geometry.forceNormalLabelPoint) < 24) return "force-normal-label";
   if (scene.showFriction && distance(point, geometry.forceFrictionLabelPoint) < 24) return "force-friction-label";
@@ -516,7 +628,7 @@ export function EditorCanvas({
   const dragStartPointRef = useRef<Point | null>(null);
   const [size, setSize] = useState({ width: 900, height: 620 });
   const [pointer, setPointer] = useState<Point>({ x: 0, y: 0 });
-  const [dragMode, setDragMode] = useState<"angle" | "angle-label" | "block" | "diagram" | "element" | "element-label" | "element-rotate" | "element-resize" | "force" | "force-gravity-label" | "force-normal-label" | "force-friction-label" | "freebody" | "mass-label" | "text" | null>(null);
+  const [dragMode, setDragMode] = useState<"angle" | "angle-label" | "block" | "box-select" | "diagram" | "element" | "element-label" | "element-rotate" | "element-resize" | "element-start-point" | "element-end-point" | "element-vector-tip" | "force" | "force-gravity-label" | "force-normal-label" | "force-friction-label" | "freebody" | "mass-label" | "text" | null>(null);
   const [suggestion, setSuggestion] = useState<Point | null>(null);
 
   useEffect(() => {
@@ -621,11 +733,25 @@ export function EditorCanvas({
           x: geometry.contentOrigin.x + (element.x + (element.width / 2 + 8) * Math.cos(rad) - (element.height / 2 + 8) * Math.sin(rad)) * geometry.scale,
           y: geometry.contentOrigin.y + (element.y + (element.width / 2 + 8) * Math.sin(rad) + (element.height / 2 + 8) * Math.cos(rad)) * geometry.scale,
         };
+        const startHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x - Math.cos(rad) * (element.width / 2)) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y - Math.sin(rad) * (element.width / 2)) * geometry.scale,
+        };
+        const endHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x + Math.cos(rad) * (element.width / 2)) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y + Math.sin(rad) * (element.width / 2)) * geometry.scale,
+        };
 
         if (distance(point, rotateHandleWorld) < 18) {
           setDragMode("element-rotate");
         } else if (distance(point, resizeHandleWorld) < 18) {
           setDragMode("element-resize");
+        } else if (isConnectionElement(element.kind) && distance(point, startHandleWorld) < 18) {
+          setDragMode("element-start-point");
+        } else if (isConnectionElement(element.kind) && distance(point, endHandleWorld) < 18) {
+          setDragMode("element-end-point");
+        } else if (isVectorElement(element.kind) && distance(point, endHandleWorld) < 18) {
+          setDragMode("element-vector-tip");
         } else if (!element.locked) {
           setDragMode("element");
         }
@@ -744,6 +870,92 @@ export function EditorCanvas({
           newH = Math.round(newH / 10) * 10;
         }
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newW, height: newH } : item) }, false);
+        return;
+      }
+    }
+
+    if (dragMode === "element-start-point" && startScene && typeof scene.selectedId === "string") {
+      const elementId = scene.selectedId.slice("element:".length);
+      const original = startScene.elements.find((item) => item.id === elementId);
+      if (original) {
+        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
+        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
+        const rad = original.rotation * Math.PI / 180;
+        const endPos = {
+          x: original.x + Math.cos(rad) * (original.width / 2),
+          y: original.y + Math.sin(rad) * (original.width / 2),
+        };
+        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 50);
+        const startPos = target ? { x: target.x, y: target.y } : { x: contentX, y: contentY };
+        const dx = endPos.x - startPos.x;
+        const dy = endPos.y - startPos.y;
+        const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);
+        const newRotation = Math.atan2(-dy, -dx) * 180 / Math.PI;
+        const newX = (startPos.x + endPos.x) / 2;
+        const newY = (startPos.y + endPos.y) / 2;
+
+        let updatedElement: DiagramElement = {
+          ...original,
+          x: newX,
+          y: newY,
+          width: newWidth,
+          rotation: newRotation,
+          startTargetId: target ? target.id : null,
+        };
+        updatedElement = resolveDiagramElement(updatedElement, scene.elements);
+        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updatedElement : item) }, false);
+        return;
+      }
+    }
+
+    if (dragMode === "element-end-point" && startScene && typeof scene.selectedId === "string") {
+      const elementId = scene.selectedId.slice("element:".length);
+      const original = startScene.elements.find((item) => item.id === elementId);
+      if (original) {
+        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
+        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
+        const rad = original.rotation * Math.PI / 180;
+        const startPos = {
+          x: original.x - Math.cos(rad) * (original.width / 2),
+          y: original.y - Math.sin(rad) * (original.width / 2),
+        };
+        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 50);
+        const endPos = target ? { x: target.x, y: target.y } : { x: contentX, y: contentY };
+        const dx = endPos.x - startPos.x;
+        const dy = endPos.y - startPos.y;
+        const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);
+        const newRotation = Math.atan2(dy, dx) * 180 / Math.PI;
+        const newX = (startPos.x + endPos.x) / 2;
+        const newY = (startPos.y + endPos.y) / 2;
+
+        let updatedElement: DiagramElement = {
+          ...original,
+          x: newX,
+          y: newY,
+          width: newWidth,
+          rotation: newRotation,
+          endTargetId: target ? target.id : null,
+        };
+        updatedElement = resolveDiagramElement(updatedElement, scene.elements);
+        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updatedElement : item) }, false);
+        return;
+      }
+    }
+
+    if (dragMode === "element-vector-tip" && startScene && typeof scene.selectedId === "string") {
+      const elementId = scene.selectedId.slice("element:".length);
+      const original = startScene.elements.find((item) => item.id === elementId);
+      if (original) {
+        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
+        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
+        const dx = contentX - original.x;
+        const dy = contentY - original.y;
+        const newWidth = clamp(Math.hypot(dx, dy) * 2, 16, 1500);
+        let newRotation = Math.atan2(dy, dx) * 180 / Math.PI;
+        if (scene.snapEnabled && !event.altKey) {
+          newRotation = Math.round(newRotation / 15) * 15;
+        }
+        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newWidth, rotation: newRotation } : item) }, false);
         return;
       }
     }

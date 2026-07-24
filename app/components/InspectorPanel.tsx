@@ -200,6 +200,18 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
               <label className="property-row"><span>幅</span><ElementNumericInput element={selectedElement} property="width" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
               <label className="property-row"><span>高さ</span><ElementNumericInput element={selectedElement} property="height" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
               <label className="property-row"><span>回転</span><div className="unit-input"><ElementNumericInput element={selectedElement} property="rotation" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></div></label>
+              <div className="rotation-presets">
+                {[0, 30, 45, 60, 90, 180, 270].map((deg) => (
+                  <button
+                    key={deg}
+                    type="button"
+                    className={`preset-chip ${selectedElement.rotation === deg ? "active" : ""}`}
+                    onClick={() => updateSelectedElement({ rotation: deg })}
+                  >
+                    {deg}°
+                  </button>
+                ))}
+              </div>
             </> : <div className="property-note"><Link2 size={13} />接続先の移動へ追従</div>}
           </> : isIncline ? <>
             <label className="property-row"><span>面</span><select aria-label="接触面の向き" value={scene.surfaceKind} onChange={(event) => onSceneChange({ surfaceKind: event.target.value as SceneState["surfaceKind"], showAngle: event.target.value === "incline" })}><option value="floor">床</option><option value="incline">斜面</option><option value="wall">壁</option></select></label>

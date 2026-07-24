@@ -505,6 +505,30 @@ export function PhysicsEditor() {
         return;
       }
 
+      // Duplicate (Ctrl+D / Cmd+D)
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "d") {
+        if (isTyping) return;
+        event.preventDefault();
+        const selectedId = activePage.scene.selectedId;
+        if (typeof selectedId === "string" && selectedId.startsWith("element:")) {
+          const elementId = selectedId.slice("element:".length);
+          const elem = activePage.scene.elements.find((e) => e.id === elementId);
+          if (elem) {
+            const duplicated: DiagramElement = {
+              ...elem,
+              id: globalThis.crypto?.randomUUID?.() ?? `elem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              x: elem.x + 24,
+              y: elem.y + 24,
+            };
+            updateScene({
+              elements: [...activePage.scene.elements, duplicated],
+              selectedId: `element:${duplicated.id}`,
+            });
+          }
+        }
+        return;
+      }
+
       // Select All (Ctrl+A / Cmd+A)
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && !isTyping) {
         event.preventDefault();

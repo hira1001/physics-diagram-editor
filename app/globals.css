@@ -512,6 +512,39 @@ kbd {
   color: var(--text-faint);
 }
 
+.rotation-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 8px;
+  padding: 0 4px;
+}
+
+.preset-chip {
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-chip:hover {
+  border-color: #3178d4;
+  color: #3178d4;
+  background: #f0f7ff;
+}
+
+.preset-chip.active {
+  border-color: #3178d4;
+  background: #e2eefb;
+  color: #1f5fae;
+  font-weight: 700;
+}
+
 .mini-template {
   position: relative;
   width: 44px;
