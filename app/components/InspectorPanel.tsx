@@ -190,8 +190,25 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
               <div className="property-note"><Link2 size={13} />{selectedCatalogSurface.roughness === "rough" ? "法線・摩擦・μ候補" : "法線候補・摩擦なし"}</div>
             </> : null}
             {isConnectionElement(selectedElement.kind) ? <>
-              <label className="property-row"><span>始点</span><select aria-label="接続の始点" value={selectedElement.startTargetId ?? ""} onChange={(event) => updateConnectionTarget("startTargetId", event.target.value)}><option value="">未接続</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>
-              <label className="property-row"><span>終点</span><select aria-label="接続の終点" value={selectedElement.endTargetId ?? ""} onChange={(event) => updateConnectionTarget("endTargetId", event.target.value)}><option value="">未接続</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>
+              <label className="property-row"><span>始点 🟢</span><select aria-label="接続の始点" value={selectedElement.startTargetId ?? ""} onChange={(event) => updateConnectionTarget("startTargetId", event.target.value)}><option value="">未接続（自由端）</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>
+              <label className="property-row"><span>終点 🔵</span><select aria-label="接続の終点" value={selectedElement.endTargetId ?? ""} onChange={(event) => updateConnectionTarget("endTargetId", event.target.value)}><option value="">未接続（自由端）</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>
+              {selectedElement.startTargetId || selectedElement.endTargetId ? (
+                <button
+                  type="button"
+                  className="full-width-btn warning-btn"
+                  onClick={() => {
+                    updateSelectedElement({ startTargetId: null, endTargetId: null });
+                  }}
+                >
+                  <Link2 size={13} />
+                  接続を分解・解除する
+                </button>
+              ) : (
+                <div className="property-note">
+                  <Link2 size={13} />
+                  緑/青の端点を対象物体へドラッグして接続できます
+                </div>
+              )}
             </> : null}
             {isVectorElement(selectedElement.kind) ? <label className="property-row"><span>作用対象</span><select aria-label="ベクトルの作用対象" value={selectedElement.referenceTargetId ?? ""} onChange={(event) => updateSelectedElement({ referenceTargetId: event.target.value || null })}><option value="">独立</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isVectorElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label> : null}
             {!(isConnectionElement(selectedElement.kind) && selectedElement.startTargetId && selectedElement.endTargetId) ? <>

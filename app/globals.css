@@ -568,6 +568,17 @@ kbd {
   border-style: solid;
 }
 
+.full-width-btn.warning-btn {
+  border-color: #e53e3e;
+  background: #fff5f5;
+  color: #c53030;
+}
+
+.full-width-btn.warning-btn:hover {
+  background: #fed7d7;
+  border-style: solid;
+}
+
 .inline-action-btn {
   margin-left: auto;
   padding: 2px 8px;

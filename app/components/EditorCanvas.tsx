@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlipHorizontal2, Link2, MoveUpRight, RotateCcw, Trash2 } from "lucide-react";
+import { FlipHorizontal2, Link2, MoveUpRight, RotateCcw, Trash2, Unlink } from "lucide-react";
 import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
 import { VariableInput } from "@/app/components/VariableInput";
 import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor-types";
@@ -497,6 +497,11 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
           y: geometry.contentOrigin.y + (resolved.y + Math.sin(rad) * halfW) * scale,
         };
 
+        const startTarget = scene.elements.find((e) => e.id === resolved.startTargetId);
+        const endTarget = scene.elements.find((e) => e.id === resolved.endTargetId);
+        const startText = startTarget ? `始点: ${startTarget.label || catalogEntry(startTarget.kind).name}` : "始点(ドラッグ接続)";
+        const endText = endTarget ? `終点: ${endTarget.label || catalogEntry(endTarget.kind).name}` : "終点(ドラッグ接続)";
+
         // Start handle (green dot)
         ctx.fillStyle = resolved.startTargetId ? "#22c55e" : "#ffffff";
         ctx.strokeStyle = "#15803d";
@@ -506,6 +511,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
         ctx.fill();
         ctx.stroke();
 
+        ctx.font = "bold 10px sans-serif";
+        const startMetrics = ctx.measureText(startText);
+        ctx.fillStyle = "rgba(21, 128, 61, 0.9)";
+        ctx.fillRect(startWorld.x - startMetrics.width / 2 - 4, startWorld.y - 24, startMetrics.width + 8, 16);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(startText, startWorld.x - startMetrics.width / 2, startWorld.y - 12);
+
         // End handle (blue dot)
         ctx.fillStyle = resolved.endTargetId ? "#3b82f6" : "#ffffff";
         ctx.strokeStyle = "#1d4ed8";
@@ -514,6 +526,12 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
         ctx.arc(endWorld.x, endWorld.y, 8, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+
+        const endMetrics = ctx.measureText(endText);
+        ctx.fillStyle = "rgba(29, 78, 216, 0.9)";
+        ctx.fillRect(endWorld.x - endMetrics.width / 2 - 4, endWorld.y - 24, endMetrics.width + 8, 16);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(endText, endWorld.x - endMetrics.width / 2, endWorld.y - 12);
       }
 
       // Vector tip handle (red dot)
@@ -1234,6 +1252,17 @@ export function EditorCanvas({
             <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button>
           </> : null}
           {selectedElement && !isVectorElement(selectedElement.kind) ? <>
+            {isConnectionElement(selectedElement.kind) ? (
+              <button
+                type="button"
+                className={selectedElement.startTargetId || selectedElement.endTargetId ? "active" : ""}
+                title={selectedElement.startTargetId || selectedElement.endTargetId ? "接続を分解・解除" : "未接続"}
+                disabled={!selectedElement.startTargetId && !selectedElement.endTargetId}
+                onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, startTargetId: null, endTargetId: null } : item) })}
+              >
+                <Unlink size={14} />
+              </button>
+            ) : null}
             <button type="button" title="位置をリセット" onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, x: 500, y: 325 } : item) })}><RotateCcw size={14} /></button>
             <button className={selectedElement.locked ? "active" : ""} type="button" title={selectedElement.locked ? "ロック解除" : "ロック"} onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, locked: !item.locked } : item) })}><Link2 size={14} /></button>
             <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button>
