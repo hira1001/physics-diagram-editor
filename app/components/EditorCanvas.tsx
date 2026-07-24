@@ -847,8 +847,7 @@ export function EditorCanvas({
         const rad = Math.atan2(contentY - element.y, contentX - element.x);
         let deg = (rad * 180 / Math.PI + 90) % 360;
         if (deg < 0) deg += 360;
-        if (scene.snapEnabled && !event.altKey) deg = Math.round(deg / 5) * 5;
-        else deg = Math.round(deg * 10) / 10;
+        deg = scene.snapEnabled && !event.altKey ? Math.round(deg) : Math.round(deg * 10) / 10;
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, rotation: deg } : item) }, false);
         return;
       }
@@ -878,7 +877,7 @@ export function EditorCanvas({
           x: original.x + Math.cos(rad) * (original.width / 2),
           y: original.y + Math.sin(rad) * (original.width / 2),
         };
-        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 50);
+        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 40);
         const startPos = target ? { x: target.x, y: target.y } : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
@@ -912,7 +911,7 @@ export function EditorCanvas({
           x: original.x - Math.cos(rad) * (original.width / 2),
           y: original.y - Math.sin(rad) * (original.width / 2),
         };
-        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 50);
+        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 40);
         const endPos = target ? { x: target.x, y: target.y } : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
@@ -946,7 +945,7 @@ export function EditorCanvas({
         const newWidth = clamp(Math.hypot(dx, dy) * 2, 16, 1500);
         let newRotation = Math.atan2(dy, dx) * 180 / Math.PI;
         if (scene.snapEnabled && !event.altKey) {
-          newRotation = Math.round(newRotation / 5) * 5;
+          newRotation = Math.round(newRotation);
         }
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newWidth, rotation: newRotation } : item) }, false);
         return;
@@ -993,8 +992,8 @@ export function EditorCanvas({
         const halfW = original.width / 2;
         const startPos = { x: nextX - Math.cos(radians) * halfW, y: nextY - Math.sin(radians) * halfW };
         const endPos = { x: nextX + Math.cos(radians) * halfW, y: nextY + Math.sin(radians) * halfW };
-        const startTarget = findNearbyTargetElement(startPos, scene.elements, elementId, 45);
-        const endTarget = findNearbyTargetElement(endPos, scene.elements, elementId, 45);
+        const startTarget = findNearbyTargetElement(startPos, scene.elements, elementId, 40);
+        const endTarget = findNearbyTargetElement(endPos, scene.elements, elementId, 40);
         updatedElement.startTargetId = startTarget ? startTarget.id : null;
         updatedElement.endTargetId = endTarget ? endTarget.id : null;
         updatedElement = resolveDiagramElement(updatedElement, scene.elements);
@@ -1053,7 +1052,7 @@ export function EditorCanvas({
     if (dragMode === "angle") {
       const horizontalDistance = scene.flipped ? geometry.start.x - point.x : point.x - geometry.start.x;
       let nextAngle = clamp((Math.atan2(geometry.start.y - point.y, horizontalDistance) * 180) / Math.PI, 5, 75);
-      nextAngle = scene.snapEnabled && !event.altKey ? Math.round(nextAngle / 5) * 5 : Math.round(nextAngle);
+      nextAngle = scene.snapEnabled && !event.altKey ? Math.round(nextAngle) : Math.round(nextAngle * 10) / 10;
       onSceneChange({ angle: nextAngle }, false);
       return;
     }
@@ -1067,14 +1066,14 @@ export function EditorCanvas({
       }
       const dx = geometry.end.x - geometry.start.x;
       const dy = geometry.end.y - geometry.start.y;
-      let t = clamp(((point.x - geometry.start.x) * dx + (point.y - geometry.start.y) * dy) / (dx * dx + dy * dy), 0.12, 0.88);
-      if (scene.snapEnabled && !event.altKey) t = Math.round(t / 0.05) * 0.05;
+      let t = clamp(((point.x - geometry.start.x) * dx + (point.y - geometry.start.y) * dy) / (dx * dx + dy * dy), 0.08, 0.92);
+      if (scene.snapEnabled && !event.altKey) t = Math.round(t * 200) / 200;
       onSceneChange({ blockPosition: t }, false);
       return;
     }
     if (dragMode === "force") {
-      let nextScale = clamp(distance(point, geometry.blockCenter) / (116 * geometry.scale), 0.5, 1.8);
-      if (scene.snapEnabled && !event.altKey) nextScale = Math.round(nextScale * 10) / 10;
+      let nextScale = clamp(distance(point, geometry.blockCenter) / (116 * geometry.scale), 0.3, 2.5);
+      if (scene.snapEnabled && !event.altKey) nextScale = Math.round(nextScale * 100) / 100;
       onSceneChange({ forceScale: nextScale }, false);
       return;
     }
