@@ -24,6 +24,47 @@ function boundaryDistance(element: DiagramElement, directionX: number, direction
   return Math.min(tx, ty);
 }
 
+export function getElementActionPoint(element: DiagramElement, elements: readonly DiagramElement[]): { x: number; y: number } {
+  if (element.referenceTargetId) {
+    const rawTarget = elements.find((item) => item.id === element.referenceTargetId);
+    const target = rawTarget && isConnectionElement(rawTarget.kind) ? resolveDiagramElement(rawTarget, elements) : rawTarget;
+    if (target) {
+      if (element.kind === "gravity") {
+        return { x: target.x, y: target.y };
+      }
+      if (element.kind === "normal-force" || element.kind === "friction-force") {
+        const surface = catalogSurfacePreset(target.kind);
+        const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(target.height, target.width) * 180 / Math.PI) : 0;
+        const targetRot = target.rotation + slopeAngle;
+        const targetRad = (targetRot * Math.PI) / 180;
+        return {
+          x: target.x + Math.sin(targetRad) * (target.height / 2),
+          y: target.y + Math.cos(targetRad) * (target.height / 2),
+        };
+      }
+      if (element.kind === "tension" || element.kind === "spring-force") {
+        const vecRad = (element.rotation * Math.PI) / 180;
+        const dirX = Math.cos(vecRad);
+        const dirY = Math.sin(vecRad);
+        const inset = boundaryDistance(target, dirX, dirY);
+        return {
+          x: target.x + dirX * inset,
+          y: target.y + dirY * inset,
+        };
+      }
+      return { x: target.x, y: target.y };
+    }
+  }
+  if (isVectorElement(element.kind)) {
+    const rad = (element.rotation * Math.PI) / 180;
+    return {
+      x: element.x - Math.cos(rad) * (element.width / 2),
+      y: element.y - Math.sin(rad) * (element.width / 2),
+    };
+  }
+  return { x: element.x, y: element.y };
+}
+
 export function resolveDiagramElement(element: DiagramElement, elements: readonly DiagramElement[]): DiagramElement {
   if (element.referenceTargetId) {
     const rawTarget = elements.find((item) => item.id === element.referenceTargetId);

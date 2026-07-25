@@ -8,7 +8,7 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
-import { decomposeVectorElement, findElementDependencies, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
+import { decomposeVectorElement, findElementDependencies, getElementActionPoint, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 import type { DiagramElement } from "@/app/lib/editor-types";
 
 function pointToSegmentDistance(p: Point, a: Point, b: Point) {
@@ -1070,13 +1070,15 @@ export function EditorCanvas({
       if (element) {
         const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
         const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
-        const rad = Math.atan2(contentY - element.y, contentX - element.x);
-        let deg = (rad * 180 / Math.PI + 90) % 360;
-        if (deg < 0) deg += 360;
+        const actionPoint = getElementActionPoint(element, scene.elements);
+        const rad = Math.atan2(contentY - actionPoint.y, contentX - actionPoint.x);
+        let deg = isVectorElement(element.kind)
+          ? (rad * 180 / Math.PI)
+          : (rad * 180 / Math.PI + 90);
         if (event.altKey) {
           deg = Math.round(deg * 10) / 10;
         } else if (event.shiftKey || event.ctrlKey) {
-          deg = Math.round(deg / 15) * 15 % 360;
+          deg = Math.round(deg / 15) * 15;
         } else if (scene.snapEnabled) {
           const targetAngles: number[] = [];
           if (scene.surfaceKind === "incline") {
@@ -1098,12 +1100,12 @@ export function EditorCanvas({
           });
 
           if (matchedSurfaceAngle !== undefined) {
-            deg = (matchedSurfaceAngle % 360 + 360) % 360;
+            deg = matchedSurfaceAngle;
           } else {
-            const majorAngles = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 360];
+            const majorAngles = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, -165, -150, -135, -120, -105, -90, -75, -60, -45, -30, -15];
             const closest = majorAngles.reduce((prev, curr) => Math.abs(curr - deg) < Math.abs(prev - deg) ? curr : prev);
             if (Math.abs(closest - deg) <= 3 || Math.abs(closest - deg - 360) <= 3) {
-              deg = closest % 360;
+              deg = closest;
             } else {
               deg = Math.round(deg);
             }
