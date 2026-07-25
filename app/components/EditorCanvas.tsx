@@ -699,7 +699,7 @@ function hitTest(point: Point, geometry: Geometry, scene: SceneState): Selection
 
       if (element.label) {
         const labelWorld = getElementLabelWorldPosition(element, geometry);
-        if (distance(point, labelWorld) < 22) return scene.selectedId;
+        if (distance(point, labelWorld) < 10) return scene.selectedId;
       }
     }
   }
@@ -862,7 +862,7 @@ export function EditorCanvas({
           y: geometry.contentOrigin.y + (element.y + Math.sin(rad) * (element.width / 2)) * geometry.scale,
         };
 
-        if (element.label && distance(point, getElementLabelWorldPosition(element, geometry)) < 22) {
+        if (element.label && distance(point, getElementLabelWorldPosition(element, geometry)) < 10) {
           setDragMode("element-label");
         } else if (distance(point, rotateHandleWorld) < 18) {
           setDragMode("element-rotate");
@@ -1181,18 +1181,7 @@ export function EditorCanvas({
           nextY = Math.round(nextY / 10) * 10;
         }
       }
-      let nextRotation = original.rotation;
-      if (scene.snapEnabled && !event.altKey && !isConnectionElement(original.kind) && !["smooth-incline", "rough-incline", "wedge"].includes(original.kind)) {
-        const elementWorld = {
-          x: geometry.contentOrigin.x + nextX * geometry.scale,
-          y: geometry.contentOrigin.y + nextY * geometry.scale,
-        };
-        const surfaceSnap = findNearbySurfaceSnap(elementWorld, scene, geometry, elementId);
-        if (surfaceSnap) {
-          nextRotation = surfaceSnap.snappedAngle;
-        }
-      }
-      let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY, rotation: nextRotation };
+      let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY };
       if (isConnectionElement(original.kind)) {
         const radians = original.rotation * Math.PI / 180;
         const halfW = original.width / 2;
