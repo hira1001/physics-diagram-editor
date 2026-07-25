@@ -188,6 +188,24 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
               }}><option value="floor">床</option><option value="incline">斜面</option><option value="wall">壁</option></select></label>
               <label className="property-row"><span>表面</span><select aria-label="部品面の粗さ" value={selectedCatalogSurface.roughness} onChange={(event) => updateSelectedElement({ kind: catalogSurfaceKind(selectedCatalogSurface.direction, event.target.value as typeof selectedCatalogSurface.roughness) })}><option value="smooth">滑らか</option><option value="rough">粗い</option></select></label>
               <div className="property-note"><Link2 size={13} />{selectedCatalogSurface.roughness === "rough" ? "法線・摩擦・μ候補" : "法線候補・摩擦なし"}</div>
+              {selectedElement.kind === "smooth-incline" || selectedElement.kind === "rough-incline" || selectedElement.kind === "wedge" ? (
+                <label className="property-row">
+                  <span>角度 θ</span>
+                  <div className="unit-input">
+                    <NumericInput
+                      aria-label="斜面角度"
+                      min={5}
+                      max={75}
+                      value={Math.round(Math.atan2(selectedElement.height, selectedElement.width) * 180 / Math.PI)}
+                      onChange={(val) => {
+                        const rad = (val * Math.PI) / 180;
+                        updateSelectedElement({ height: Math.round(selectedElement.width * Math.tan(rad)) });
+                      }}
+                    />
+                    <b>°</b>
+                  </div>
+                </label>
+              ) : null}
             </> : null}
             {isConnectionElement(selectedElement.kind) ? <>
               <label className="property-row"><span>始点 🟢</span><select aria-label="接続の始点" value={selectedElement.startTargetId ?? ""} onChange={(event) => updateConnectionTarget("startTargetId", event.target.value)}><option value="">未接続（自由端）</option>{scene.elements.filter((item) => item.id !== selectedElement.id && !isConnectionElement(item.kind)).map((item) => <option key={item.id} value={item.id}>{catalogEntry(item.kind).name} · {item.label || item.id.slice(0, 6)}</option>)}</select></label>

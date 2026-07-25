@@ -91,6 +91,24 @@ function drawInclineWedge(ctx: CanvasRenderingContext2D, width: number, height: 
   ctx.lineTo(-w / 2 + raSize, h / 2);
   ctx.stroke();
 
+  // Draw angle arc (θ) at acute corner (w / 2, h / 2)
+  const angleRad = Math.atan2(h, w);
+  const angleDeg = Math.round(angleRad * 180 / Math.PI);
+  const arcRadius = Math.min(w, h) * 0.35;
+  ctx.beginPath();
+  ctx.arc(w / 2, h / 2, arcRadius, Math.PI, Math.PI + angleRad);
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(w / 2 - arcRadius - 10, h / 2 - 6);
+  ctx.rotate(-elementRotation);
+  ctx.font = "italic 12px Georgia, serif";
+  ctx.fillStyle = "#18202b";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label || `${angleDeg}°`, 0, 0);
+  ctx.restore();
+
   if (rough) {
     for (let x = -w / 2 + 10; x < w / 2; x += 16) {
       line(ctx, x, h / 2, x - 8, h / 2 + 10);
