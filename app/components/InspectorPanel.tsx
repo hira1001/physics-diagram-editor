@@ -180,7 +180,20 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
         <button aria-expanded={openSections.dimensions} className="inspector-heading" type="button" onClick={() => toggleSection("dimensions")}><span>寸法・値</span><ChevronDown size={14} /></button>
         {openSections.dimensions ? <div className="inspector-content">
           {selectedElement ? <>
-            <label className="property-row"><span>ラベル</span><ElementLabelInput element={selectedElement} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
+            <label className="property-row">
+              <span>ラベル</span>
+              <ElementLabelInput element={selectedElement} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} />
+              {selectedElement.labelOffsetX || selectedElement.labelOffsetY ? (
+                <button
+                  type="button"
+                  className="inline-action-btn"
+                  title="文字位置をリセット"
+                  onClick={() => updateSelectedElement({ labelOffsetX: 0, labelOffsetY: 0 })}
+                >
+                  位置リセット
+                </button>
+              ) : null}
+            </label>
             {selectedCatalogSurface ? <>
               <label className="property-row"><span>向き</span><select aria-label="部品面の向き" value={selectedCatalogSurface.direction} onChange={(event) => {
                 const direction = event.target.value as typeof selectedCatalogSurface.direction;
@@ -236,6 +249,17 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
               <label className="property-row"><span>高さ</span><ElementNumericInput element={selectedElement} property="height" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
               <label className="property-row"><span>回転</span><div className="unit-input"><ElementNumericInput element={selectedElement} property="rotation" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></div></label>
               <div className="rotation-presets">
+                <button
+                  type="button"
+                  className="preset-chip"
+                  title="斜面と平行にする"
+                  onClick={() => {
+                    const inclineAngle = scene.surfaceKind === "incline" ? (scene.flipped ? scene.angle : -scene.angle) : -30;
+                    updateSelectedElement({ rotation: inclineAngle });
+                  }}
+                >
+                  斜面平行
+                </button>
                 {[0, 30, 45, 60, 90, 180, 270].map((deg) => (
                   <button
                     key={deg}

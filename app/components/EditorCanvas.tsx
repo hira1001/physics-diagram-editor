@@ -30,6 +30,32 @@ function findNearbyTargetElement(
   return closest;
 }
 
+export function getElementLabelWorldPosition(element: DiagramElement, geometry: Geometry) {
+  const rad = element.rotation * Math.PI / 180;
+  const lx = element.labelOffsetX ?? 0;
+  const ly = element.labelOffsetY ?? 0;
+  let baseX = 0;
+  let baseY = -element.height / 2 - 14;
+
+  if (element.kind === "point-mass") { baseX = 18; baseY = -12; }
+  else if (element.kind === "block") { baseX = -element.width * 0.2; baseY = 7; }
+  else if (element.kind === "sphere") { baseX = 0; baseY = 8; }
+  else if (element.kind === "disk") { baseX = element.width * 0.22; baseY = -element.height * 0.18; }
+  else if (["cylinder", "cart", "fluid-region"].includes(element.kind)) { baseX = 0; baseY = 7; }
+  else if (["string", "rope", "cable", "light-rod", "strut"].includes(element.kind)) { baseX = 0; baseY = -14; }
+  else if (element.kind === "spring") { baseX = 0; baseY = -19; }
+  else if (element.kind === "damper") { baseX = 0; baseY = -element.height * 0.65; }
+  else if (isVectorElement(element.kind)) { baseX = element.width / 2 + 16; baseY = -10; }
+
+  const totalX = baseX + lx;
+  const totalY = baseY + ly;
+
+  return {
+    x: geometry.contentOrigin.x + (element.x + totalX * Math.cos(rad) - totalY * Math.sin(rad)) * geometry.scale,
+    y: geometry.contentOrigin.y + (element.y + totalX * Math.sin(rad) + totalY * Math.cos(rad)) * geometry.scale,
+  };
+}
+
 interface EditorCanvasProps {
   activeTool: ToolId;
   pageKind: PageKind;
@@ -548,6 +574,23 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
         ctx.fill();
         ctx.stroke();
       }
+
+      // Label handle (purple dot)
+      if (selectedElement.label) {
+        const labelWorld = getElementLabelWorldPosition(selectedElement, geometry);
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#8b5cf6";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(labelWorld.x, labelWorld.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = "bold 9px sans-serif";
+        ctx.fillStyle = "#8b5cf6";
+        ctx.textAlign = "center";
+        ctx.fillText("文字", labelWorld.x, labelWorld.y - 12);
+      }
     }
   }
 
@@ -598,6 +641,11 @@ function hitTest(point: Point, geometry: Geometry, scene: SceneState): Selection
           y: geometry.contentOrigin.y + (element.y + Math.sin(rad) * halfW) * geometry.scale,
         };
         if (distance(point, tipHandleWorld) < 18) return scene.selectedId;
+      }
+
+      if (element.label) {
+        const labelWorld = getElementLabelWorldPosition(element, geometry);
+        if (distance(point, labelWorld) < 22) return scene.selectedId;
       }
     }
   }
@@ -760,7 +808,9 @@ export function EditorCanvas({
           y: geometry.contentOrigin.y + (element.y + Math.sin(rad) * (element.width / 2)) * geometry.scale,
         };
 
-        if (distance(point, rotateHandleWorld) < 18) {
+        if (element.label && distance(point, getElementLabelWorldPosition(element, geometry)) < 22) {
+          setDragMode("element-label");
+        } else if (distance(point, rotateHandleWorld) < 18) {
           setDragMode("element-rotate");
         } else if (distance(point, resizeHandleWorld) < 18) {
           setDragMode("element-resize");
@@ -978,6 +1028,31 @@ export function EditorCanvas({
           newRotation = Math.round(newRotation);
         }
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newWidth, rotation: newRotation } : item) }, false);
+        return;
+      }
+    }
+
+    if (dragMode === "element-label" && startScene && startPoint && typeof scene.selectedId === "string") {
+      const elementId = scene.selectedId.slice("element:".length);
+      const original = startScene.elements.find((item) => item.id === elementId);
+      if (original) {
+        const rad = original.rotation * Math.PI / 180;
+        const dx = (point.x - startPoint.x) / geometry.scale;
+        const dy = (point.y - startPoint.y) / geometry.scale;
+        const localDx = dx * Math.cos(-rad) - dy * Math.sin(-rad);
+        const localDy = dx * Math.sin(-rad) + dy * Math.cos(-rad);
+
+        onSceneChange({
+          elements: scene.elements.map((item) =>
+            item.id === elementId
+              ? {
+                  ...item,
+                  labelOffsetX: Math.round((original.labelOffsetX ?? 0) + localDx),
+                  labelOffsetY: Math.round((original.labelOffsetY ?? 0) + localDy),
+                }
+              : item
+          ),
+        }, false);
         return;
       }
     }
@@ -1276,7 +1351,7 @@ export function EditorCanvas({
             <button disabled={Boolean(componentConstraint)} type="button" title={componentConstraint ? "成分分解済み" : "成分分解"} onClick={decomposeSelectedVector}><MoveUpRight size={14} /></button>
             <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button>
           </> : null}
-          {selectedElement && !isVectorElement(selectedElement.kind) ? <>
+          {selectedElement ? <>
             {isConnectionElement(selectedElement.kind) ? (
               <button
                 type="button"
@@ -1286,6 +1361,25 @@ export function EditorCanvas({
                 onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, startTargetId: null, endTargetId: null } : item) })}
               >
                 <Unlink size={14} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              title="斜面と平行に回転・配置"
+              onClick={() => {
+                const inclineAngle = scene.surfaceKind === "incline" ? (scene.flipped ? scene.angle : -scene.angle) : -30;
+                onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, rotation: inclineAngle } : item) });
+              }}
+            >
+              <MoveUpRight size={14} />
+            </button>
+            {selectedElement.labelOffsetX || selectedElement.labelOffsetY ? (
+              <button
+                type="button"
+                title="文字位置リセット"
+                onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, labelOffsetX: 0, labelOffsetY: 0 } : item) })}
+              >
+                <RotateCcw size={14} />
               </button>
             ) : null}
             <button type="button" title="位置をリセット" onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, x: 500, y: 325 } : item) })}><RotateCcw size={14} /></button>
