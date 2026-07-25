@@ -234,23 +234,68 @@ export function createVariableForElement(element: DiagramElement, id = globalThi
   };
 }
 
-export function decomposeVectorElement(element: DiagramElement, variables: readonly Variable[], idPrefix = globalThis.crypto?.randomUUID?.() ?? `components-${Date.now()}`) {
+export function decomposeVectorElement(
+  element: DiagramElement,
+  variables: readonly Variable[],
+  elementsOrIdPrefix?: readonly DiagramElement[] | string,
+  idPrefixArg?: string
+) {
   if (!isVectorElement(element.kind)) return null;
-  const radians = element.rotation * Math.PI / 180;
+
+  const elements = Array.isArray(elementsOrIdPrefix) ? elementsOrIdPrefix : [];
+  const idPrefix = typeof elementsOrIdPrefix === "string"
+    ? elementsOrIdPrefix
+    : idPrefixArg ?? (globalThis.crypto?.randomUUID?.() ?? `components-${Date.now()}`);
+
+  // Determine local reference frame angle (e.g. incline slope angle or local-axis)
+  let frameAngle = 0;
+  let hasLocalFrame = false;
+
+  if (element.referenceTargetId) {
+    const target = elements.find((el) => el.id === element.referenceTargetId);
+    if (target) {
+      const surface = catalogSurfacePreset(target.kind);
+      if (surface?.direction === "incline") {
+        const slopeAngle = -Math.round(Math.atan2(target.height, target.width) * 180 / Math.PI);
+        frameAngle = target.rotation + slopeAngle;
+        hasLocalFrame = true;
+      } else if (target.rotation !== 0) {
+        frameAngle = target.rotation;
+        hasLocalFrame = true;
+      }
+    }
+  }
+
+  if (!hasLocalFrame) {
+    const inclineEl = elements.find((el) => ["smooth-incline", "rough-incline", "wedge"].includes(el.kind));
+    if (inclineEl) {
+      const slopeAngle = inclineEl.rotation - Math.round(Math.atan2(inclineEl.height, inclineEl.width) * 180 / Math.PI);
+      frameAngle = slopeAngle;
+      hasLocalFrame = true;
+    }
+  }
+
+  const vecRad = element.rotation * Math.PI / 180;
+  const frameRad = frameAngle * Math.PI / 180;
+  const relRad = vecRad - frameRad;
+
+  const horizRot = Math.cos(relRad) >= 0 ? frameAngle : frameAngle + 180;
+  const vertRot = Math.sin(relRad) >= 0 ? frameAngle + 90 : frameAngle - 90;
+
   const horizontal = createDiagramElement(element.kind, element.x, element.y, `${idPrefix}-x`);
   const vertical = createDiagramElement(element.kind, element.x, element.y, `${idPrefix}-y`);
   horizontal.fontSize = element.fontSize;
   horizontal.label = `${element.label || "F"}ₓ`;
   horizontal.lineWidth = element.lineWidth;
   horizontal.referenceTargetId = element.referenceTargetId;
-  horizontal.rotation = Math.cos(radians) >= 0 ? 0 : 180;
-  horizontal.width = Math.max(8, Math.abs(element.width * Math.cos(radians)));
+  horizontal.rotation = horizRot;
+  horizontal.width = Math.max(8, Math.abs(element.width * Math.cos(relRad)));
   vertical.fontSize = element.fontSize;
   vertical.label = `${element.label || "F"}ᵧ`;
   vertical.lineWidth = element.lineWidth;
   vertical.referenceTargetId = element.referenceTargetId;
-  vertical.rotation = Math.sin(radians) >= 0 ? 90 : -90;
-  vertical.width = Math.max(8, Math.abs(element.width * Math.sin(radians)));
+  vertical.rotation = vertRot;
+  vertical.width = Math.max(8, Math.abs(element.width * Math.sin(relRad)));
 
   const existingVariable = variables.find((variable) => variable.referenceIds.includes(element.id));
   const nextVariables = existingVariable

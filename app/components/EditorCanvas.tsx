@@ -1647,7 +1647,7 @@ export function EditorCanvas({
   });
   const decomposeSelectedVector = () => {
     if (!selectedElement || !isVectorElement(selectedElement.kind) || componentConstraint) return;
-    const decomposition = decomposeVectorElement(selectedElement, scene.variables);
+    const decomposition = decomposeVectorElement(selectedElement, scene.variables, scene.elements);
     if (!decomposition) return;
     onSceneChange({
       constraints: [...scene.constraints, decomposition.constraint],
