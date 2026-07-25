@@ -8,7 +8,7 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
-import { decomposeVectorElement, findElementDependencies, getElementActionPoint, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
+import { contextCandidatesForElement, createReferencedElement, createVariableForElement, decomposeVectorElement, findElementDependencies, getElementActionPoint, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 import type { DiagramElement } from "@/app/lib/editor-types";
 
 function pointToSegmentDistance(p: Point, a: Point, b: Point) {
@@ -882,6 +882,66 @@ export function EditorCanvas({
 
   const geometry = useMemo(() => createGeometry(size.width, size.height, scene, zoom), [scene, size, zoom]);
 
+  // Keyboard shortcuts for force addition and element actions
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (event.metaKey || event.ctrlKey) return;
+
+      const sel = typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")
+        ? scene.elements.find((item) => `element:${item.id}` === scene.selectedId)
+        : null;
+
+      if (!sel) return;
+
+      // Delete / Backspace: delete selected element
+      if (event.key === "Delete" || event.key === "Backspace") {
+        const deps = findElementDependencies(sel.id, scene.elements, scene.variables, scene.constraints);
+        if (deps.connections.length || deps.variables.length || deps.constraints.length) return;
+        event.preventDefault();
+        onSceneChange({ elements: scene.elements.filter((item) => item.id !== sel.id), selectedId: null });
+        return;
+      }
+
+      // D: decompose vector into components
+      if (event.key === "d" || event.key === "D") {
+        if (!isVectorElement(sel.kind)) return;
+        const existingDecomp = scene.constraints.find((c) => c.kind === "same-variable" && c.targetIds[0] === sel.id && c.targetIds.length === 3);
+        if (existingDecomp) return;
+        const decomposition = decomposeVectorElement(sel, scene.variables);
+        if (!decomposition) return;
+        event.preventDefault();
+        onSceneChange({
+          constraints: [...scene.constraints, decomposition.constraint],
+          elements: [...scene.elements, ...decomposition.components],
+          selectedId: `element:${sel.id}`,
+          variables: decomposition.variables,
+        });
+        return;
+      }
+
+      // Quick force shortcuts: G=gravity, N=normal, F=friction, T=tension
+      if (isVectorElement(sel.kind)) return; // only for body/surface elements
+      const shortcutMap: Record<string, string> = { g: "gravity", n: "normal-force", f: "friction-force", t: "tension" };
+      const kind = shortcutMap[event.key.toLowerCase()];
+      if (!kind) return;
+      const candidates = contextCandidatesForElement(sel);
+      if (!candidates.includes(kind as any)) return;
+      const alreadyAttached = scene.elements.some((el) => el.referenceTargetId === sel.id && el.kind === kind);
+      if (alreadyAttached) return;
+      event.preventDefault();
+      const newEl = createReferencedElement(kind as any, sel);
+      const newVar = createVariableForElement(newEl);
+      onSceneChange({
+        elements: [...scene.elements, newEl],
+        variables: [...scene.variables, newVar],
+        selectedId: `element:${newEl.id}`,
+      });
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [scene, onSceneChange]);
+
   const canvasPoint = useCallback((event: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = event.currentTarget.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -1586,53 +1646,45 @@ export function EditorCanvas({
             <button disabled={Boolean(componentConstraint)} type="button" title={componentConstraint ? "成分分解済み" : "成分分解"} onClick={decomposeSelectedVector}><MoveUpRight size={14} /></button>
             <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button>
           </> : null}
-          {selectedElement && !isVectorElement(selectedElement.kind) && !isConnectionElement(selectedElement.kind) ? <>
-            <button
-              type="button"
-              className="quick-action-btn"
-              title="重力 mg を追加"
-              onClick={() => {
-                const rawVec = createDiagramElement("gravity", selectedElement.x, selectedElement.y + 35);
-                const vec = { ...rawVec, label: "mg", referenceTargetId: selectedElement.id, rotation: 90, width: 70 };
-                const newVec = resolveDiagramElement(vec, scene.elements);
-                onSceneChange({ elements: [...scene.elements, newVec], selectedId: `element:${newVec.id}` });
-              }}
-            >
-              + mg
-            </button>
-            <button
-              type="button"
-              className="quick-action-btn"
-              title="垂直抗力 N を追加"
-              onClick={() => {
-                const surface = catalogSurfacePreset(selectedElement.kind);
-                const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(selectedElement.height, selectedElement.width) * 180 / Math.PI) : 0;
-                const rot = selectedElement.rotation + slopeAngle - 90;
-                const rawVec = createDiagramElement("normal-force", selectedElement.x, selectedElement.y - 35);
-                const vec = { ...rawVec, label: "N", referenceTargetId: selectedElement.id, rotation: rot, width: 70 };
-                const newVec = resolveDiagramElement(vec, scene.elements);
-                onSceneChange({ elements: [...scene.elements, newVec], selectedId: `element:${newVec.id}` });
-              }}
-            >
-              + N
-            </button>
-            <button
-              type="button"
-              className="quick-action-btn"
-              title="摩擦力 f を追加"
-              onClick={() => {
-                const surface = catalogSurfacePreset(selectedElement.kind);
-                const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(selectedElement.height, selectedElement.width) * 180 / Math.PI) : 0;
-                const rot = selectedElement.rotation + slopeAngle;
-                const rawVec = createDiagramElement("friction-force", selectedElement.x + 35, selectedElement.y);
-                const vec = { ...rawVec, label: "f", referenceTargetId: selectedElement.id, rotation: rot, width: 70 };
-                const newVec = resolveDiagramElement(vec, scene.elements);
-                onSceneChange({ elements: [...scene.elements, newVec], selectedId: `element:${newVec.id}` });
-              }}
-            >
-              + f
-            </button>
-          </> : null}
+          {selectedElement && !isVectorElement(selectedElement.kind) ? (() => {
+            const candidates = contextCandidatesForElement(selectedElement);
+            if (candidates.length === 0) return null;
+            const quickLabels: Record<string, string> = {
+              "gravity": "+ mg", "normal-force": "+ N", "friction-force": "+ f",
+              "tension": "+ T", "spring-force": "+ Fs", "force": "+ F",
+              "velocity": "+ v", "acceleration": "+ a", "momentum": "+ p",
+              "moment": "+ M", "angular-velocity": "+ ω", "angular-acceleration": "+ α",
+              "rotation-direction": "+ ↻", "drag-force": "+ D", "buoyancy": "+ B",
+              "angle-arc": "+ θ", "local-axis": "+ xy", "length-dimension": "+ L",
+              "radius-dimension": "+ R",
+            };
+            const alreadyAttached = new Set(
+              scene.elements
+                .filter((el) => el.referenceTargetId === selectedElement.id)
+                .map((el) => el.kind)
+            );
+            const filtered = candidates.filter((kind) => !alreadyAttached.has(kind));
+            if (filtered.length === 0) return null;
+            return <>{filtered.slice(0, 6).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                className="quick-action-btn"
+                title={`${catalogEntry(kind).name} を追加`}
+                onClick={() => {
+                  const newEl = createReferencedElement(kind, selectedElement);
+                  const newVar = createVariableForElement(newEl);
+                  onSceneChange({
+                    elements: [...scene.elements, newEl],
+                    variables: [...scene.variables, newVar],
+                    selectedId: `element:${newEl.id}`,
+                  });
+                }}
+              >
+                {quickLabels[kind] || `+ ${catalogEntry(kind).defaultLabel || catalogEntry(kind).name}`}
+              </button>
+            ))}</>;
+          })() : null}
           {selectedElement ? <>
             {isConnectionElement(selectedElement.kind) ? (
               <button
