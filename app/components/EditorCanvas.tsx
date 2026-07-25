@@ -173,13 +173,22 @@ function findNearbyTargetElement(
   point: { x: number; y: number },
   elements: readonly DiagramElement[],
   excludeId?: string,
-  maxDistance = 45,
+  maxDistance = 50,
 ) {
   let closest: DiagramElement | null = null;
   let minDistance = maxDistance;
   for (const item of elements) {
     if (item.id === excludeId || isConnectionElement(item.kind)) continue;
-    const dist = Math.hypot(item.x - point.x, item.y - point.y);
+    const dx = point.x - item.x;
+    const dy = point.y - item.y;
+    const rad = -item.rotation * Math.PI / 180;
+    const localX = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const localY = dx * Math.sin(rad) + dy * Math.cos(rad);
+    const halfW = item.kind === "point-mass" ? 14 : Math.max(8, item.width / 2);
+    const halfH = item.kind === "point-mass" ? 14 : Math.max(8, item.height / 2);
+    const clampX = Math.max(-halfW, Math.min(halfW, localX));
+    const clampY = Math.max(-halfH, Math.min(halfH, localY));
+    const dist = Math.hypot(localX - clampX, localY - clampY);
     if (dist < minDistance) {
       minDistance = dist;
       closest = item;
@@ -986,11 +995,26 @@ export function EditorCanvas({
     if (activeTool !== "select") {
       const catalogDefinition = catalogEntryForTool(activeTool);
       if (catalogDefinition) {
-        const element = createDiagramElement(
+        let element = createDiagramElement(
           catalogDefinition.kind,
           clamp((point.x - geometry.contentOrigin.x) / geometry.scale, 0, 1000),
           clamp((point.y - geometry.contentOrigin.y) / geometry.scale, 0, 650),
         );
+        if (isConnectionElement(element.kind)) {
+          const contentPt = {
+            x: clamp((point.x - geometry.contentOrigin.x) / geometry.scale, 0, 1000),
+            y: clamp((point.y - geometry.contentOrigin.y) / geometry.scale, 0, 650),
+          };
+          const radians = element.rotation * Math.PI / 180;
+          const halfW = element.width / 2;
+          const startPos = { x: contentPt.x - Math.cos(radians) * halfW, y: contentPt.y - Math.sin(radians) * halfW };
+          const endPos = { x: contentPt.x + Math.cos(radians) * halfW, y: contentPt.y + Math.sin(radians) * halfW };
+          const startTarget = findNearbyTargetElement(startPos, scene.elements, element.id, 75);
+          const endTarget = findNearbyTargetElement(endPos, scene.elements, element.id, 75);
+          if (startTarget) element.startTargetId = startTarget.id;
+          if (endTarget && endTarget.id !== element.startTargetId) element.endTargetId = endTarget.id;
+          element = resolveDiagramElement(element, scene.elements);
+        }
         onSceneChange({ elements: [...scene.elements, element], selectedId: `element:${element.id}` });
         onToolComplete();
         return;
