@@ -8,7 +8,7 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
-import { contextCandidatesForElement, createReferencedElement, createVariableForElement, decomposeVectorElement, findElementDependencies, getClosestFaceMidpoint, getElementActionPoint, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
+import { contextCandidatesForElement, createReferencedElement, createVariableForElement, decomposeVectorElement, findElementDependencies, getClosestFaceMidpoint, getElementActionPoint, getOccupiedFaceNames, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 import type { DiagramElement } from "@/app/lib/editor-types";
 
 function pointToSegmentDistance(p: Point, a: Point, b: Point) {
@@ -179,7 +179,7 @@ function findNearbyTargetElement(
   let closest: DiagramElement | null = null;
   let minDistance = maxDistance;
   for (const item of elements) {
-    if (item.id === excludeId || isConnectionElement(item.kind)) continue;
+    if (item.id === excludeId || isConnectionElement(item.kind) || isVectorElement(item.kind) || ["length-dimension", "radius-dimension", "text", "point-label", "center-of-mass", "local-axis", "angle-arc"].includes(item.kind)) continue;
     const dx = point.x - item.x;
     const dy = point.y - item.y;
     const rad = -item.rotation * Math.PI / 180;
@@ -1252,7 +1252,7 @@ export function EditorCanvas({
           y: original.y + Math.sin(rad) * (original.width / 2),
         };
         const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 60);
-        const startPos = target ? getClosestFaceMidpoint(target, { x: contentX, y: contentY }) : { x: contentX, y: contentY };
+        const startPos = target ? getClosestFaceMidpoint(target, { x: contentX, y: contentY }, getOccupiedFaceNames(target, scene.elements, elementId)) : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
         const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);
@@ -1286,7 +1286,7 @@ export function EditorCanvas({
           y: original.y - Math.sin(rad) * (original.width / 2),
         };
         const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 60);
-        const endPos = target ? getClosestFaceMidpoint(target, { x: contentX, y: contentY }) : { x: contentX, y: contentY };
+        const endPos = target ? getClosestFaceMidpoint(target, { x: contentX, y: contentY }, getOccupiedFaceNames(target, scene.elements, elementId)) : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
         const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);

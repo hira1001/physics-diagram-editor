@@ -24,6 +24,20 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     expect(resolveDiagramElement(string, [first, moved, string])).toMatchObject({ x: 100, y: 198.5, width: 121, rotation: 90 });
   });
 
+  it("avoids occupied face midpoints when multiple connections target the same body", () => {
+    const block = createDiagramElement("block", 100, 100, "block-a");
+    const rightTarget = createDiagramElement("block", 300, 100, "block-right");
+    const topTarget = createDiagramElement("block", 100, -100, "block-top");
+
+    const firstConn = createConnection("spring", block, rightTarget, "spring-1");
+    // Right face of block-a is now occupied by spring-1
+    const secondConn = createConnection("string", block, topTarget, "string-2");
+    expect(secondConn.startTargetId).toBe("block-a");
+    // string-2 attaches to top face of block-a since right face is occupied
+    expect(secondConn.x).toBe(100);
+    expect(secondConn.y).toBe(0);
+  });
+
   it("creates a typed variable with a concrete element reference", () => {
     const mass = createDiagramElement("point-mass", 100, 100, "mass-a");
     const variable = createVariableForElement(mass, "variable-mass-a");
