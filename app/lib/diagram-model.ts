@@ -191,11 +191,11 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
     endX = endFace.x;
     endY = endFace.y;
   } else if (start) {
-    const startFace = getClosestFaceMidpoint(start, { x: endX, y: endY });
+    const startFace = getClosestFaceMidpoint(start, { x: startX, y: startY });
     startX = startFace.x;
     startY = startFace.y;
   } else if (end) {
-    const endFace = getClosestFaceMidpoint(end, { x: startX, y: startY });
+    const endFace = getClosestFaceMidpoint(end, { x: endX, y: endY });
     endX = endFace.x;
     endY = endFace.y;
   }
@@ -255,10 +255,14 @@ export function contextCandidatesForElement(element: DiagramElement): DiagramEle
 }
 
 export function createConnection(kind: Extract<DiagramElementKind, "string" | "rope" | "cable" | "light-rod" | "spring" | "damper" | "strut">, start: DiagramElement, end: DiagramElement, id?: string) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
   const element = createDiagramElement(kind, (start.x + end.x) / 2, (start.y + end.y) / 2, id);
   element.startTargetId = start.id;
   element.endTargetId = end.id;
-  return resolveDiagramElement(element, [start, end]);
+  element.width = Math.max(16, Math.hypot(dx, dy));
+  element.rotation = Math.atan2(dy, dx) * 180 / Math.PI;
+  return resolveDiagramElement(element, [start, end, element]);
 }
 
 export function variableTypeForElement(kind: DiagramElementKind): VariableType {

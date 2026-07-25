@@ -19,9 +19,9 @@ describe("PHY-004/005/018/022 semantic diagram model", () => {
     const second = createDiagramElement("sphere", 300, 100, "sphere-b");
     const string = createConnection("string", first, second, "string-a-b");
 
-    expect(string).toMatchObject({ startTargetId: "block-a", endTargetId: "sphere-b", x: 209.5, y: 100, width: 99, rotation: 0 });
+    expect(string).toMatchObject({ startTargetId: "block-a", endTargetId: "sphere-b", x: 215, y: 100, width: 110, rotation: 0 });
     const moved = { ...second, x: 100, y: 300 };
-    expect(resolveDiagramElement(string, [first, moved, string])).toMatchObject({ x: 100, y: 198.5, width: 121, rotation: 90 });
+    expect(resolveDiagramElement(string, [first, moved, string])).toMatchObject({ x: 100, y: 204, width: 132, rotation: 90 });
   });
 
   it("creates a typed variable with a concrete element reference", () => {
