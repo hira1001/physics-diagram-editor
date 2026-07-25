@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   PHYSICS_COMPONENT_CATALOG,
+  assertCatalogIntegrity,
   catalogEntryForTool,
   catalogSurfaceKind,
   catalogSurfacePreset,
   componentToolId,
   createDiagramElement,
+  REQUIRED_CATALOG_KINDS,
   searchComponentCatalog,
 } from "@/app/lib/component-catalog";
 import { diagramElementsToSvg } from "@/app/lib/catalog-svg";
@@ -17,8 +19,15 @@ describe("PHY-075 standard component catalog", () => {
     expect(PHYSICS_COMPONENT_CATALOG.length).toBeGreaterThanOrEqual(60);
     expect(new Set(kinds).size).toBe(kinds.length);
     expect(new Set(PHYSICS_COMPONENT_CATALOG.map((item) => item.category))).toEqual(new Set([
-      "物体", "接触面", "支持", "接続", "機械要素", "軌道", "流体", "ベクトル", "注釈",
+      "物体", "接触面", "支持", "構造力学", "接続", "機械要素", "軌道", "流体", "ベクトル", "注釈",
     ]));
+  });
+
+  it("includes required kinds for templates and structural presets", () => {
+    assertCatalogIntegrity();
+    for (const kind of REQUIRED_CATALOG_KINDS) {
+      expect(PHYSICS_COMPONENT_CATALOG.map((item) => item.kind)).toContain(kind);
+    }
   });
 
   it("contains independently placeable smooth and rough floor, wall, and incline parts", () => {

@@ -26,5 +26,5 @@
 - `app/components/InspectorPanel.tsx`: 複数選択時の共通一括操作プロパティ表示
 
 ## ステータス (Status)
-- **状態**: 起票済み (Open)
+- **状態**: 部分実装 (Partial) — Window/Crossing マーキーと `selectedIds` 保持を実装（2026-07）。Shift 追加選択・複数同時移動は継続。
 - **優先度**: 高 (High)

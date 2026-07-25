@@ -215,6 +215,22 @@ export function drawDiagramElement(
       ctx.lineWidth = element.lineWidth * 2.5 / scale; line(ctx, -w / 2, 0, w / 2, 0); ctx.lineWidth = element.lineWidth / scale; for (const x of [-w / 2, w / 2]) { ctx.beginPath(); ctx.arc(x, 0, 6, 0, Math.PI * 2); ctx.fill(); } drawText(ctx, element.label, 0, -14, lx, ly, rotRad); break;
     case "rigid-joint":
       ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); line(ctx, -w / 2, 0, w / 2, 0); line(ctx, 0, -h / 2, 0, h / 2); break;
+    case "beam":
+      ctx.lineWidth = element.lineWidth * 2.2 / scale; line(ctx, -w / 2, 0, w / 2, 0); ctx.lineWidth = element.lineWidth / scale; drawText(ctx, element.label, 0, -14, lx, ly, rotRad); break;
+    case "h-beam": {
+      const flange = h * .22;
+      ctx.lineWidth = element.lineWidth * 1.8 / scale;
+      line(ctx, -w / 2, -flange, w / 2, -flange);
+      line(ctx, -w / 2, flange, w / 2, flange);
+      line(ctx, 0, -h / 2, 0, h / 2);
+      ctx.lineWidth = element.lineWidth / scale;
+      drawText(ctx, element.label, 0, -h / 2 - 12, lx, ly, rotRad);
+      break;
+    }
+    case "structural-column":
+      ctx.lineWidth = element.lineWidth * 2.5 / scale; line(ctx, 0, -h / 2, 0, h / 2); ctx.lineWidth = element.lineWidth / scale; drawText(ctx, element.label, w / 2 + 8, 0, lx, ly, rotRad); break;
+    case "truss-member":
+      ctx.lineWidth = element.lineWidth * 1.8 / scale; line(ctx, -w / 2, h / 2, w / 2, -h / 2); ctx.lineWidth = element.lineWidth / scale; break;
     case "distributed-load": {
       const arrowCount = Math.max(3, Math.round(w / 35));
       line(ctx, -w / 2, -h / 2, w / 2, -h / 2);

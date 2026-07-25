@@ -29,5 +29,5 @@
 - `app/components/LibraryPanel.tsx`: テンプレート選択イベントハンドラ
 
 ## ステータス (Status)
-- **状態**: 起票済み (Open)
+- **状態**: 解決済み (Resolved) — `applyTemplate` は新規 `DiagramPage` を追加し `activePageId` を切り替える実装に更新（[`PhysicsEditor.tsx`](../../app/components/PhysicsEditor.tsx)）。
 - **優先度**: 高 (High)

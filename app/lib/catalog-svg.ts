@@ -102,6 +102,10 @@ export function diagramElementToSvg(element: DiagramElement) {
       case "ceiling": body = `<path d="M${-w / 2},0 L${w / 2},0" ${common}/>`; break;
       case "step": body = `<path d="M${-w / 2},${h / 2} L0,${h / 2} L0,0 L${w / 2},0 L${w / 2},${-h / 2}" ${common}/>`; break;
       case "corner": body = `<path d="M${-w / 2},${h / 2} L${w / 2},${h / 2} L${w / 2},${-h / 2}" ${common}/>`; break;
+      case "beam": body = `<line x1="${-w / 2}" y1="0" x2="${w / 2}" y2="0" stroke="#18202b" stroke-width="${lineWidth * 2.2}"/>${makeSvgText(0, -14, label, fontSize, true, rot)}`; break;
+      case "h-beam": body = `<line x1="${-w / 2}" y1="${-h * .22}" x2="${w / 2}" y2="${-h * .22}" ${common}/><line x1="${-w / 2}" y1="${h * .22}" x2="${w / 2}" y2="${h * .22}" ${common}/><line x1="0" y1="${-h / 2}" x2="0" y2="${h / 2}" ${common}/>${makeSvgText(0, -h / 2 - 12, label, fontSize, true, rot)}`; break;
+      case "structural-column": body = `<line x1="0" y1="${-h / 2}" x2="0" y2="${h / 2}" stroke="#18202b" stroke-width="${lineWidth * 2.5}"/>${makeSvgText(w / 2 + 8, 0, label, fontSize, true, rot, "")}`; break;
+      case "truss-member": body = `<line x1="${-w / 2}" y1="${h / 2}" x2="${w / 2}" y2="${-h / 2}" stroke="#18202b" stroke-width="${lineWidth * 1.8}"/>`; break;
       case "compound-pulley": case "belt": body = `<circle cx="${-w * .25}" cy="0" r="${h * .25}" ${common}/><circle cx="${w * .25}" cy="0" r="${h * .25}" ${common}/><path d="M${-w * .25},${-h * .25} L${w * .25},${-h * .25} M${-w * .25},${h * .25} L${w * .25},${h * .25}" ${common}/>`; break;
       default: body = `<path d="M${-w / 2},${h / 2} L0,${-h / 2} L${w / 2},${h / 2} Z" ${common}/>${makeSvgText(0, h * .3, label, fontSize, true, rot)}`;
     }

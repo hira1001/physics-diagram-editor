@@ -7,6 +7,7 @@ export type DiagramElementKind =
   | "smooth-floor" | "rough-floor" | "smooth-wall" | "rough-wall" | "smooth-incline" | "rough-incline"
   | "ceiling" | "step" | "corner" | "curved-surface"
   | "fixed-end" | "pin-support" | "hinge" | "roller-support" | "simple-support" | "strut"
+  | "beam" | "h-beam" | "structural-column" | "truss-member"
   | "distributed-load" | "triangular-load" | "bending-moment" | "shear-diagram" | "moment-diagram" | "rigid-joint"
   | "string" | "rope" | "cable" | "light-rod" | "spring" | "damper"
   | "fixed-pulley" | "movable-pulley" | "compound-pulley" | "wheel-axle" | "rotation-axis" | "belt"

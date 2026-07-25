@@ -1268,3 +1268,18 @@ test("PHY-005: a spring keeps two endpoints and exposes the spring constant", as
   await page.mouse.up();
   await expect(canvas).toHaveScreenshot("semantic-spring-followed.png", { maxDiffPixels: 0 });
 });
+
+test("ISSUE-011: template apply and bulk force HUD add elements", async ({ page }) => {
+  await openCleanEditor(page);
+  await page.getByRole("button", { name: "スキップ", exact: true }).click().catch(() => {});
+  await page.getByRole("button", { name: /テンプレートを開く/ }).click();
+  await page.getByRole("dialog", { name: "テンプレート" }).getByRole("button", { name: /粗い斜面上の物体/ }).click();
+  await page.getByRole("tab", { name: "構造", exact: true }).click();
+  const blockRow = page.locator(".catalog-structure").filter({ hasText: "物体" }).first();
+  await expect(blockRow).toBeVisible({ timeout: 10000 });
+  await blockRow.click();
+  const bulkBtn = page.getByRole("button", { name: "力を全部", exact: true });
+  await expect(bulkBtn).toBeVisible();
+  await bulkBtn.click();
+  await expect(page.locator(".catalog-structure").filter({ hasText: "重力" })).toBeVisible({ timeout: 5000 });
+});

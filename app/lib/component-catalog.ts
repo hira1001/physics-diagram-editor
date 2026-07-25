@@ -1,6 +1,6 @@
 import type { DiagramElement, DiagramElementKind, ToolId } from "@/app/lib/editor-types";
 
-export type ComponentCategory = "物体" | "接触面" | "支持" | "接続" | "機械要素" | "軌道" | "流体" | "ベクトル" | "注釈";
+export type ComponentCategory = "物体" | "接触面" | "支持" | "構造力学" | "接続" | "機械要素" | "軌道" | "流体" | "ベクトル" | "注釈";
 
 export interface ComponentCatalogEntry {
   aliases: string[];
@@ -70,7 +70,12 @@ export const PHYSICS_COMPONENT_CATALOG: readonly ComponentCatalogEntry[] = [
   entry("strut", "支柱", "支持", 150, 24, "", ["柱"], ["軸力", "端点接続"]),
   entry("rigid-joint", "剛接合", "支持", 48, 48, "", ["剛フレーム", "ラーメン"], ["回転固定", "剛節点"]),
 
-  entry("distributed-load", "等分布荷重", "ベクトル", 180, 48, "w", ["分布荷重", "均一荷重"], ["スパン全体", "連続荷重"]),
+  entry("beam", "梁", "構造力学", 220, 28, "L", ["はり", "ガーダー"], ["曲げ", "せん断", "スパン"]),
+  entry("h-beam", "H形鋼", "構造力学", 220, 36, "L", ["H鋼"], ["断面二次モーメント", "曲げ"]),
+  entry("structural-column", "柱", "構造力学", 28, 160, "", ["ラーメン柱"], ["軸力", "曲げ"]),
+  entry("truss-member", "トラス部材", "構造力学", 170, 20, "", ["桁架", "部材"], ["軸力", "接合"]),
+
+  entry("distributed-load", "等分布荷重", "ベクトル", 180, 48, "w", ["分布荷重", "均布荷重"], ["スパン全体", "連続荷重"]),
   entry("triangular-load", "等変分布荷重", "ベクトル", 180, 48, "q", ["三角分布荷重"], ["一次変化", "勾配荷重"]),
   entry("bending-moment", "集中モーメント", "ベクトル", 80, 80, "M", ["偶力", "曲げモーメント"], ["回転作用", "節点モーメント"]),
   entry("shear-diagram", "剪断力図 (SFD)", "ベクトル", 180, 70, "Q", ["SFD", "剪断力分布"], ["断面力", "せん断力"]),
@@ -132,8 +137,32 @@ export function isDiagramElementKind(value: unknown): value is DiagramElementKin
   return typeof value === "string" && byKind.has(value as DiagramElementKind);
 }
 
-export function catalogEntry(kind: DiagramElementKind) {
-  return byKind.get(kind)!;
+export function catalogEntry(kind: DiagramElementKind): ComponentCatalogEntry {
+  const definition = byKind.get(kind);
+  if (!definition) {
+    throw new Error(`Unknown diagram element kind: ${kind}`);
+  }
+  return definition;
+}
+
+/** Kinds that must exist in PHYSICS_COMPONENT_CATALOG for templates and createDiagramElement. */
+export const REQUIRED_CATALOG_KINDS = [
+  "fixed-end",
+  "pin-support",
+  "roller-support",
+  "distributed-load",
+  "beam",
+  "structural-column",
+  "truss-member",
+  "rigid-joint",
+] as const satisfies readonly DiagramElementKind[];
+
+export function assertCatalogIntegrity() {
+  for (const kind of REQUIRED_CATALOG_KINDS) {
+    if (!byKind.has(kind)) {
+      throw new Error(`Catalog missing required kind: ${kind}`);
+    }
+  }
 }
 
 export function catalogEntryForTool(tool: ToolId) {

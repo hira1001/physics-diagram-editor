@@ -2,6 +2,8 @@
 
 PowerPointを使わず、教科書品質の力学図を素早く作成するための物理図エディタです。
 
+- [プロジェクト概要・アーキテクチャ](docs/PROJECT-OVERVIEW.md)
+
 ## Quality
 
 - [要件トレーサビリティ付き品質テストマトリクス](docs/QUALITY-TEST-MATRIX.md)

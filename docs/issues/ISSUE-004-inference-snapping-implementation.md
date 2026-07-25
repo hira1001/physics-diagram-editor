@@ -6,8 +6,7 @@
 本チケットでは、図形移動・配置時における「真の推論スナップ（Smart Alignment Snapping & Guides）」機能を実装します。
 
 ## 不具合・原因分析 (Root Cause Analysis)
-- `EditorCanvas.tsx` 内の `dragMode === "element"`（要素移動処理）において、`nextX`, `nextY` がマウスの絶対移動量そのまま（連続値）で更新されており、他の要素の座標やグリッドへの投影・吸着計算がスキップされている。
-- 推論スナップ作動時のガイドライン（赤・青の破線など）の描画レイヤー処理が存在しない。
+- ~~`EditorCanvas.tsx` 内の要素移動処理で推論スナップが未実装~~ **2026-07 更新**: 他要素中心・グリッド・接地スナップは実装済み（[`EditorCanvas.tsx`](../../app/components/EditorCanvas.tsx)）。**整列ガイド線（赤/青破線）とエッジ揃えは未達**。
 
 ## 要求仕様 (Requirements)
 1. **グリッド & オブジェクト軸推論スナップ (Smart Snapping)**:
@@ -25,5 +24,5 @@
 - `app/lib/diagram-model.ts`: 近接エレメント・軸計算ユーティリティ
 
 ## ステータス (Status)
-- **状態**: 起票済み (Open)
+- **状態**: 部分実装 (Partial) — スナップ本体は実装、ガイド線描画は実装済み（2026-07）。エッジ整列・OSNAP 拡張は継続。
 - **優先度**: 高 (High)

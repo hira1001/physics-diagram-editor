@@ -37,6 +37,7 @@ import { inspectExportQuality } from "@/app/lib/export-quality";
 import { DEFAULT_EXPORT_SETTINGS, type ExportSettings } from "@/app/lib/export-types";
 import { addCatalogElementsToPptx } from "@/app/lib/catalog-pptx";
 import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/app/lib/workspace-storage";
+import { attachAllForcesForElement } from "@/app/lib/scenario-actions";
 import { removeElementWithDependencies } from "@/app/lib/diagram-model";
 import { writeTextToClipboard } from "@/app/lib/clipboard";
 import { blockRotationDegrees, effectiveSurfaceAngle, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
@@ -112,7 +113,16 @@ export function PhysicsEditor() {
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const editorRootRef = useRef<HTMLDivElement>(null);
-  const activePage = workspace.pages.find((page) => page.id === workspace.activePageId) ?? workspace.pages[0];
+  const activePage = useMemo(() => {
+    const found = workspace.pages.find((page) => page.id === workspace.activePageId);
+    return found ?? workspace.pages[0] ?? INITIAL_WORKSPACE.pages[0]!;
+  }, [workspace.activePageId, workspace.pages]);
+
+  useEffect(() => {
+    if (workspace.pages.length === 0) return;
+    if (workspace.pages.some((page) => page.id === workspace.activePageId)) return;
+    setWorkspace((current) => ({ ...current, activePageId: current.pages[0]!.id }));
+  }, [workspace.activePageId, workspace.pages]);
 
   useEffect(() => {
     editorRootRef.current?.setAttribute("data-hydrated", "true");
@@ -485,6 +495,24 @@ export function PhysicsEditor() {
     { id: "incline-30", label: "斜面を30°に設定", detail: "選択中の斜面の角度を固定", icon: "incline", run: () => updateScene({ angle: 30, selectedId: "incline" }) },
     { id: "add-block", label: "物体を斜面に追加", detail: "接触制約付きで配置", icon: "box", run: () => updateScene({ selectedId: "block" }) },
     { id: "add-forces", label: "基本の力を追加", detail: activePage.scene.surfaceRoughness === "rough" ? "mg・N・fを候補から追加" : "mg・Nを候補から追加", icon: "force", run: () => updateScene({ showGravity: true, showNormal: true, showFriction: activePage.scene.surfaceRoughness === "rough", selectedId: "force-gravity" }) },
+    {
+      id: "attach-all-forces",
+      label: "選択物体の力を一括追加",
+      detail: "mg・N・f など物理候補をまとめて追加",
+      icon: "force",
+      run: () => {
+        const selected = activePage.scene.selectedId?.startsWith("element:")
+          ? activePage.scene.elements.find((item) => `element:${item.id}` === activePage.scene.selectedId)
+          : null;
+        if (!selected) {
+          setSystemNotice("物体部品を選択してから実行してください");
+          return;
+        }
+        const patch = attachAllForcesForElement(selected, activePage.scene);
+        if (patch) updateScene(patch);
+        else setSystemNotice("追加できる力がありません");
+      },
+    },
     { id: "add-angle", label: "角度 θ を表示", detail: "斜面と水平線の交角", icon: "angle", run: () => updateScene({ showAngle: true, selectedId: "angle" }) },
     { id: "free-body", label: "自由体図を生成", detail: "変量を共有した別タブを作成", icon: "freebody", run: addFreeBodyPage },
     { id: "grid", label: "グリッドを切り替え", detail: activePage.scene.grid ? "グリッドを非表示" : "グリッドを表示", icon: "grid", run: () => updateScene({ grid: !activePage.scene.grid }) },
@@ -497,7 +525,7 @@ export function PhysicsEditor() {
       icon: item.category === "ベクトル" ? "force" : item.category === "注釈" ? "angle" : item.category === "接触面" ? "incline" : "box",
       run: () => setActiveTool(componentToolId(item.kind)),
     })),
-  ], [activePage.scene.grid, activePage.scene.surfaceRoughness, addFreeBodyPage, updateScene]);
+  ], [activePage.scene, activePage.scene.grid, activePage.scene.surfaceRoughness, addFreeBodyPage, updateScene]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -731,6 +759,7 @@ export function PhysicsEditor() {
           <label className="menu-row"><span><Settings2 size={15} />UI密度</span><select value={workspace.density} onChange={(event) => setWorkspace((current) => ({ ...current, density: event.target.value as WorkspaceState["density"] }))}><option value="standard">標準</option><option value="compact">コンパクト</option></select></label>
           <button className="menu-row" type="button" onClick={saveNow}><span><Check size={15} />今すぐ保存</span></button>
           <button className="menu-row" type="button" onClick={() => setTourOpen(true)}><span><CircleHelp size={15} />60秒ガイド</span><ChevronDown size={14} /></button>
+          <div className="menu-row menu-hint" role="note"><span><CircleHelp size={15} />ショートカット</span><small>物体選択中: G mg · N 抗力 · F 摩擦 · T 張力 · D 成分分解 · ⌘K 検索 · ⌘Z 元に戻す</small></div>
           <button className="menu-row" type="button" onClick={() => setWorkspace(INITIAL_WORKSPACE)}><span><Sparkles size={15} />サンプルを復元</span></button>
         </div>
       ) : null}
@@ -780,6 +809,7 @@ export function PhysicsEditor() {
           onPointerPositionChange={setPointerPosition}
           onSceneChange={updateScene}
           onToolComplete={() => setActiveTool("select")}
+          onUserNotice={setSystemNotice}
         />
 
         {workspace.rightPanelVisible ? <InspectorPanel pageKind={activePage.kind} scene={activePage.scene} onCreateFreeBody={addFreeBodyPage} onCommitSnapshot={commitSnapshot} onSceneChange={updateScene} /> : null}
@@ -861,7 +891,7 @@ export function PhysicsEditor() {
           })}
           <button className="add-page" type="button" onClick={addBlankPage} title="新規図面シートを追加"><Plus size={14} /></button>
         </div>
-        <div className="drawing-status"><span>x: {pointerPosition.x}</span><span>y: {pointerPosition.y}</span><span>θ: {activePage.scene.angle}°</span><button className={activePage.scene.grid ? "active" : ""} type="button" onClick={() => updateScene({ grid: !activePage.scene.grid })}><Grid3X3 size={13} />GRID</button><button className={activePage.scene.snapEnabled ? "active" : ""} type="button" onClick={() => updateScene({ snapEnabled: !activePage.scene.snapEnabled })}>SNAP</button></div>
+        <div className="drawing-status"><span>x: {pointerPosition.x}</span><span>y: {pointerPosition.y}</span><span>θ: {activePage.scene.angle}°</span><button className={activePage.scene.grid ? "active" : ""} type="button" title="グリッド表示" onClick={() => updateScene({ grid: !activePage.scene.grid })}><Grid3X3 size={13} />グリッド</button><button className={activePage.scene.snapEnabled ? "active" : ""} type="button" title="整列・推論スナップ" onClick={() => updateScene({ snapEnabled: !activePage.scene.snapEnabled })}>整列</button></div>
         <div className="zoom-controls"><button type="button" aria-label="縮小" onClick={() => setWorkspace((current) => ({ ...current, zoom: Math.max(50, current.zoom - 10) }))}><Minus size={13} /></button><span>{workspace.zoom}%</span><button type="button" aria-label="拡大" onClick={() => setWorkspace((current) => ({ ...current, zoom: Math.min(180, current.zoom + 10) }))}><Plus size={13} /></button><button type="button" title="全体表示" onClick={() => { setWorkspace((current) => ({ ...current, zoom: 100 })); updateScene({ diagramOffsetX: 0, diagramOffsetY: 0 }); }}><Maximize2 size={13} /></button></div>
       </footer>
 
@@ -870,8 +900,8 @@ export function PhysicsEditor() {
           <div className="tour-progress"><span style={{ width: `${((tourStep + 1) / 3) * 100}%` }} /></div>
           <button aria-label="ガイドを閉じる" className="tour-close" type="button" onClick={finishTour}><X size={14} /></button>
           <small>60秒ガイド · {tourStep + 1}/3</small>
-          <strong>{tourStep === 0 ? "斜面を選択しました" : tourStep === 1 ? "角度を数値で変更" : "頂点の候補から追加"}</strong>
-          <p>{tourStep === 0 ? "青い端点をドラッグすると、斜面角と関連要素が追従します。" : tourStep === 1 ? "図上の θ = 30° をクリックし、数値を入力してみましょう。" : "斜面の頂点へカーソルを近づけ、表示された候補をクリックできます。"}</p>
+          <strong>{tourStep === 0 ? "テンプレートから始める" : tourStep === 1 ? "物体に力を足す" : "図を出力する"}</strong>
+          <p>{tourStep === 0 ? "左下の「テンプレートを開く」から斜面や梁のセットを選ぶと、新しいシートに一括配置されます。" : tourStep === 1 ? "物体を選び、HUDの「力を全部」または G/N/F/T キーで重力・抗力などを追加できます。" : "上部の「出力」から PPTX・SVG・PNG・PDF を選び、品質チェック後にダウンロードします。"}</p>
           <div><button type="button" onClick={finishTour}>スキップ</button><button className="primary" type="button" onClick={() => tourStep < 2 ? setTourStep((step) => step + 1) : finishTour()}>{tourStep < 2 ? "次へ" : "完了"}</button></div>
         </aside>
       ) : null}

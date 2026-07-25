@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Gauge,
+  Layers3,
   Lock,
   Magnet,
   MousePointer2,
@@ -54,6 +55,7 @@ const CATEGORIES: Array<{
   { id: "物体", name: "剛体・物体", shortName: "物体", icon: Box },
   { id: "接触面", name: "接触面", shortName: "接触面", icon: Slash },
   { id: "支持", name: "支持・固定", shortName: "支持", icon: Magnet },
+  { id: "構造力学", name: "構造・梁", shortName: "構造", icon: Layers3 },
   { id: "接続", name: "接続・ひも", shortName: "接続", icon: Waves },
   { id: "機械要素", name: "滑車・回転", shortName: "滑車", icon: CircleDot },
   { id: "軌道", name: "軌道・線", shortName: "軌道", icon: Orbit },
@@ -96,6 +98,7 @@ const categoryIcons: Record<ComponentCategory, typeof Box> = {
   物体: Box,
   接触面: Slash,
   支持: Magnet,
+  構造力学: Layers3,
   接続: Waves,
   機械要素: CircleDot,
   軌道: Orbit,
@@ -312,7 +315,7 @@ export function LibraryPanel({
           </div>
 
           <button className="library-footer" type="button" onClick={onOpenTemplates}>
-            <Orbit size={15} />テンプレートを開く<span>8</span>
+            <Orbit size={15} />テンプレートを開く<span>11</span>
           </button>
         </>
       ) : (
@@ -322,7 +325,7 @@ export function LibraryPanel({
             <button className={scene.snapEnabled ? "active" : ""} type="button" aria-label="推論を切り替え" onClick={() => onSceneChange({ snapEnabled: !scene.snapEnabled })}><Magnet size={15} /></button>
           </div>
           <div className="structure-list">
-            {structureItems.map((item) => {
+            {scene.elements.length === 0 ? structureItems.map((item) => {
               const isVisible = item.id === "angle" ? scene.showAngle
                 : item.id === "axis" ? scene.showAxis
                   : item.id === "force-gravity" ? scene.showGravity
@@ -351,7 +354,7 @@ export function LibraryPanel({
                   {canToggle ? <button className="visibility-control" type="button" onClick={toggleVisibility} aria-label={`${item.name}を${isVisible ? "非表示" : "表示"}`}>{isVisible ? <Eye size={13} /> : <EyeOff size={13} />}</button> : <span />}
                 </div>
               );
-            })}
+            }) : null}
             {scene.elements.map((element) => {
               const definition = PHYSICS_COMPONENT_CATALOG.find((item) => item.kind === element.kind)!;
               const selectionId = `element:${element.id}` as SelectionId;

@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlipHorizontal2, Link2, MoveUpRight, RotateCcw, Trash2, Unlink } from "lucide-react";
 import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
 import { VariableInput } from "@/app/components/VariableInput";
-import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor-types";
+import type { DiagramElement, PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor-types";
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
 import { contextCandidatesForElement, createReferencedElement, createVariableForElement, decomposeVectorElement, findElementDependencies, getClosestFaceMidpoint, getElementActionPoint, getOccupiedFaceNames, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
-import type { DiagramElement } from "@/app/lib/editor-types";
+import { elementIdsInMarquee } from "@/app/lib/canvas-selection";
+import { attachAllForcesForElement } from "@/app/lib/scenario-actions";
 
 function pointToSegmentDistance(p: Point, a: Point, b: Point) {
   const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
@@ -249,6 +250,7 @@ interface EditorCanvasProps {
   onPointerPositionChange: (point: Point) => void;
   onSceneChange: (patch: Partial<SceneState>, record?: boolean) => void;
   onToolComplete: () => void;
+  onUserNotice?: (message: string) => void;
 }
 
 export interface Point { x: number; y: number }
@@ -427,7 +429,12 @@ function drawSpring(ctx: CanvasRenderingContext2D, from: Point, to: Point, scale
   ctx.restore();
 }
 
-export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, scene: SceneState, pageKind: PageKind, zoom: number) {
+export interface CanvasOverlay {
+  marquee?: { x1: number; y1: number; x2: number; y2: number };
+  snapGuides?: { x?: number; y?: number };
+}
+
+export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: number, scene: SceneState, pageKind: PageKind, zoom: number, overlay?: CanvasOverlay) {
   const geometry = createGeometry(width, height, scene, zoom);
   const { artboard, scale } = geometry;
   ctx.clearRect(0, 0, width, height);
@@ -819,6 +826,46 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
   }
 
   ctx.restore();
+
+  if (overlay?.snapGuides?.x !== undefined) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(239, 68, 68, 0.9)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(overlay.snapGuides.x, 0);
+    ctx.lineTo(overlay.snapGuides.x, height);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (overlay?.snapGuides?.y !== undefined) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(59, 130, 246, 0.9)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, overlay.snapGuides.y);
+    ctx.lineTo(width, overlay.snapGuides.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (overlay?.marquee) {
+    const { x1, y1, x2, y2 } = overlay.marquee;
+    const left = Math.min(x1, x2);
+    const top = Math.min(y1, y2);
+    const w = Math.abs(x2 - x1);
+    const h = Math.abs(y2 - y1);
+    const windowSelection = x2 >= x1;
+    ctx.save();
+    ctx.fillStyle = windowSelection ? "rgba(59, 130, 246, 0.15)" : "rgba(34, 197, 94, 0.15)";
+    ctx.strokeStyle = windowSelection ? "rgba(59, 130, 246, 0.85)" : "rgba(34, 197, 94, 0.85)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash(windowSelection ? [] : [6, 4]);
+    ctx.fillRect(left, top, w, h);
+    ctx.strokeRect(left, top, w, h);
+    ctx.restore();
+  }
+
   return geometry;
 }
 
@@ -913,14 +960,17 @@ export function EditorCanvas({
   onPointerPositionChange,
   onSceneChange,
   onToolComplete,
+  onUserNotice,
 }: EditorCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const dragStartSceneRef = useRef<SceneState | null>(null);
   const dragStartPointRef = useRef<Point | null>(null);
   const activeResizeHandleRef = useRef<string | null>(null);
+  const boxSelectEndRef = useRef<Point | null>(null);
   const [size, setSize] = useState({ width: 900, height: 620 });
   const [pointer, setPointer] = useState<Point>({ x: 0, y: 0 });
+  const [canvasOverlay, setCanvasOverlay] = useState<CanvasOverlay>({});
   const [dragMode, setDragMode] = useState<"angle" | "angle-label" | "block" | "box-select" | "diagram" | "element" | "element-label" | "element-rotate" | "element-resize" | "element-start-point" | "element-end-point" | "element-vector-tip" | "force" | "force-gravity-label" | "force-normal-label" | "force-friction-label" | "freebody" | "mass-label" | "text" | null>(null);
   const [suggestion, setSuggestion] = useState<Point | null>(null);
 
@@ -945,9 +995,9 @@ export function EditorCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    drawScene(ctx, size.width, size.height, scene, pageKind, zoom);
+    drawScene(ctx, size.width, size.height, scene, pageKind, zoom, canvasOverlay);
     onCanvasReady(canvas);
-  }, [onCanvasReady, pageKind, scene, size, zoom]);
+  }, [canvasOverlay, onCanvasReady, pageKind, scene, size, zoom]);
 
   const geometry = useMemo(() => createGeometry(size.width, size.height, scene, zoom), [scene, size, zoom]);
 
@@ -966,7 +1016,11 @@ export function EditorCanvas({
       // Delete / Backspace: delete selected element
       if (event.key === "Delete" || event.key === "Backspace") {
         const deps = findElementDependencies(sel.id, scene.elements, scene.variables, scene.constraints);
-        if (deps.connections.length || deps.variables.length || deps.constraints.length) return;
+        if (deps.connections.length || deps.variables.length || deps.constraints.length) {
+          event.preventDefault();
+          onUserNotice?.("参照中のため削除できません。右パネルで依存を確認してください。");
+          return;
+        }
         event.preventDefault();
         onSceneChange({ elements: scene.elements.filter((item) => item.id !== sel.id), selectedId: null });
         return;
@@ -1009,7 +1063,7 @@ export function EditorCanvas({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [scene, onSceneChange]);
+  }, [onUserNotice, scene, onSceneChange]);
 
   const canvasPoint = useCallback((event: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1084,8 +1138,16 @@ export function EditorCanvas({
     const hit = pageKind === "freebody"
       ? typeof sceneHit === "string" && sceneHit.startsWith("element:") ? sceneHit : distance(point, freeBodyCenter) < 90 * geometry.scale ? "block" : null
       : sceneHit;
-    onSceneChange({ selectedId: hit });
-    if (!hit) return;
+    onSceneChange({ selectedId: hit, ...(hit ? {} : { selectedIds: [] }) });
+    if (!hit) {
+      if (activeTool === "select") {
+        dragStartSceneRef.current = { ...scene };
+        dragStartPointRef.current = point;
+        setDragMode("box-select");
+        setCanvasOverlay({ marquee: { x1: point.x, y1: point.y, x2: point.x, y2: point.y } });
+      }
+      return;
+    }
     dragStartSceneRef.current = { ...scene };
     dragStartPointRef.current = point;
 
@@ -1223,6 +1285,12 @@ export function EditorCanvas({
     });
     const startScene = dragStartSceneRef.current;
     const startPoint = dragStartPointRef.current;
+
+    if (dragMode === "box-select" && startPoint) {
+      boxSelectEndRef.current = point;
+      setCanvasOverlay({ marquee: { x1: startPoint.x, y1: startPoint.y, x2: point.x, y2: point.y } });
+      return;
+    }
 
     if ((dragMode === "diagram" || dragMode === "freebody") && startScene && startPoint) {
       const nextX = startScene.diagramOffsetX + (point.x - startPoint.x) / geometry.scale;
@@ -1486,18 +1554,30 @@ export function EditorCanvas({
       let nextX = original.x + (point.x - startPoint.x) / geometry.scale;
       let nextY = original.y + (point.y - startPoint.y) / geometry.scale;
 
+      let guideX: number | undefined;
+      let guideY: number | undefined;
       if (scene.snapEnabled && !event.altKey) {
         const threshold = 8 / geometry.scale;
         for (const other of scene.elements) {
           if (other.id === original.id) continue;
-          if (Math.abs(other.x - nextX) < threshold) nextX = other.x;
-          if (Math.abs(other.y - nextY) < threshold) nextY = other.y;
+          if (Math.abs(other.x - nextX) < threshold) {
+            nextX = other.x;
+            guideX = geometry.contentOrigin.x + other.x * geometry.scale;
+          }
+          if (Math.abs(other.y - nextY) < threshold) {
+            nextY = other.y;
+            guideY = geometry.contentOrigin.y + other.y * geometry.scale;
+          }
         }
         if (scene.grid) {
           nextX = Math.round(nextX / 10) * 10;
           nextY = Math.round(nextY / 10) * 10;
         }
       }
+      setCanvasOverlay((current) => ({
+        marquee: current.marquee,
+        snapGuides: guideX !== undefined || guideY !== undefined ? { x: guideX, y: guideY } : undefined,
+      }));
       let nextRotation = original.rotation;
       if (
         scene.snapEnabled &&
@@ -1647,6 +1727,27 @@ export function EditorCanvas({
   }, [activeTool, canvasPoint, dragMode, geometry, onPointerPositionChange, onSceneChange, scene.angle, scene.contactConstraint, scene.elements, scene.flipped, scene.selectedId, scene.snapEnabled, scene.surfaceKind]);
 
   const handlePointerUp = useCallback(() => {
+    if (dragMode === "box-select" && dragStartPointRef.current) {
+      const start = dragStartPointRef.current;
+      const end = boxSelectEndRef.current ?? start;
+      const windowSelection = end.x >= start.x;
+      const left = (Math.min(start.x, end.x) - geometry.contentOrigin.x) / geometry.scale;
+      const right = (Math.max(start.x, end.x) - geometry.contentOrigin.x) / geometry.scale;
+      const top = (Math.min(start.y, end.y) - geometry.contentOrigin.y) / geometry.scale;
+      const bottom = (Math.max(start.y, end.y) - geometry.contentOrigin.y) / geometry.scale;
+      if (Math.abs(end.x - start.x) > 4 || Math.abs(end.y - start.y) > 4) {
+        const ids = elementIdsInMarquee(scene.elements, { left, right, top, bottom }, windowSelection);
+        if (ids.length > 0) {
+          onSceneChange({
+            selectedIds: ids,
+            selectedId: `element:${ids[0]}`,
+          });
+        }
+      }
+      setCanvasOverlay({});
+      boxSelectEndRef.current = null;
+    }
+
     // Auto-generate forces when a body element is grounded on a surface after drag
     if (dragMode === "element" && typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
       const elementId = scene.selectedId.slice("element:".length);
@@ -1681,8 +1782,21 @@ export function EditorCanvas({
     if (dragMode && dragStartSceneRef.current) onCommitSnapshot(dragStartSceneRef.current);
     dragStartSceneRef.current = null;
     dragStartPointRef.current = null;
+    activeResizeHandleRef.current = null;
     setDragMode(null);
+    setCanvasOverlay((current) => ({ marquee: undefined, snapGuides: undefined }));
   }, [dragMode, geometry, onCommitSnapshot, onSceneChange, scene]);
+
+  useEffect(() => {
+    if (!dragMode) return;
+    const release = () => handlePointerUp();
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+  }, [dragMode, handlePointerUp]);
 
   const hudPosition = useMemo(() => {
     if (!scene.selectedId) return null;
@@ -1869,8 +1983,21 @@ export function EditorCanvas({
                 .map((el) => el.kind)
             );
             const filtered = candidates.filter((kind) => !alreadyAttached.has(kind));
-            if (filtered.length === 0) return null;
-            return <>{filtered.slice(0, 6).map((kind) => (
+            const hasForceCandidates = candidates.some((kind) => isVectorElement(kind));
+            if (!hasForceCandidates) return null;
+            return <>
+              <button
+                type="button"
+                className="quick-action-btn"
+                title="受ける力を一括追加 (G/N/F/T も可)"
+                onClick={() => {
+                  const patch = attachAllForcesForElement(selectedElement, scene);
+                  if (patch) onSceneChange(patch);
+                }}
+              >
+                力を全部
+              </button>
+              {filtered.slice(0, 5).map((kind) => (
               <button
                 key={kind}
                 type="button"

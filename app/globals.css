@@ -115,6 +115,19 @@ select:focus-visible {
   cursor: default;
 }
 
+.menu-row.menu-hint {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  cursor: default;
+}
+
+.menu-row.menu-hint small {
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .icon-button.small {
   width: 26px;
   height: 26px;
