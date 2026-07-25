@@ -1223,14 +1223,15 @@ export function EditorCanvas({
       if (element) {
         const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
         const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
-        const actionPoint = getElementActionPoint(element, scene.elements);
-        const rad = Math.atan2(contentY - actionPoint.y, contentX - actionPoint.x);
+        const pivotX = isVectorElement(element.kind) ? getElementActionPoint(element, scene.elements).x : element.x;
+        const pivotY = isVectorElement(element.kind) ? getElementActionPoint(element, scene.elements).y : element.y;
+        const rad = Math.atan2(contentY - pivotY, contentX - pivotX);
         let deg = isVectorElement(element.kind)
           ? (rad * 180 / Math.PI)
           : (rad * 180 / Math.PI + 90);
         if (event.altKey) {
           deg = Math.round(deg * 10) / 10;
-        } else if (event.shiftKey || event.ctrlKey) {
+        } else if (event.shiftKey) {
           deg = Math.round(deg / 15) * 15;
         } else if (scene.snapEnabled) {
           const targetAngles: number[] = [];
