@@ -1586,6 +1586,53 @@ export function EditorCanvas({
             <button disabled={Boolean(componentConstraint)} type="button" title={componentConstraint ? "成分分解済み" : "成分分解"} onClick={decomposeSelectedVector}><MoveUpRight size={14} /></button>
             <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button>
           </> : null}
+          {selectedElement && !isVectorElement(selectedElement.kind) && !isConnectionElement(selectedElement.kind) ? <>
+            <button
+              type="button"
+              className="quick-action-btn"
+              title="重力 mg を追加"
+              onClick={() => {
+                const rawVec = createDiagramElement("gravity", selectedElement.x, selectedElement.y + 35);
+                const vec = { ...rawVec, label: "mg", referenceTargetId: selectedElement.id, rotation: 90, width: 70 };
+                const newVec = resolveDiagramElement(vec, scene.elements);
+                onSceneChange({ elements: [...scene.elements, newVec], selectedId: `element:${newVec.id}` });
+              }}
+            >
+              + mg
+            </button>
+            <button
+              type="button"
+              className="quick-action-btn"
+              title="垂直抗力 N を追加"
+              onClick={() => {
+                const surface = catalogSurfacePreset(selectedElement.kind);
+                const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(selectedElement.height, selectedElement.width) * 180 / Math.PI) : 0;
+                const rot = selectedElement.rotation + slopeAngle - 90;
+                const rawVec = createDiagramElement("normal-force", selectedElement.x, selectedElement.y - 35);
+                const vec = { ...rawVec, label: "N", referenceTargetId: selectedElement.id, rotation: rot, width: 70 };
+                const newVec = resolveDiagramElement(vec, scene.elements);
+                onSceneChange({ elements: [...scene.elements, newVec], selectedId: `element:${newVec.id}` });
+              }}
+            >
+              + N
+            </button>
+            <button
+              type="button"
+              className="quick-action-btn"
+              title="摩擦力 f を追加"
+              onClick={() => {
+                const surface = catalogSurfacePreset(selectedElement.kind);
+                const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(selectedElement.height, selectedElement.width) * 180 / Math.PI) : 0;
+                const rot = selectedElement.rotation + slopeAngle;
+                const rawVec = createDiagramElement("friction-force", selectedElement.x + 35, selectedElement.y);
+                const vec = { ...rawVec, label: "f", referenceTargetId: selectedElement.id, rotation: rot, width: 70 };
+                const newVec = resolveDiagramElement(vec, scene.elements);
+                onSceneChange({ elements: [...scene.elements, newVec], selectedId: `element:${newVec.id}` });
+              }}
+            >
+              + f
+            </button>
+          </> : null}
           {selectedElement ? <>
             {isConnectionElement(selectedElement.kind) ? (
               <button
