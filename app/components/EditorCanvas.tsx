@@ -1510,7 +1510,7 @@ export function EditorCanvas({
         if (groundingSnap) {
           nextX = groundingSnap.snappedX;
           nextY = groundingSnap.snappedY;
-          nextRotation = groundingSnap.angle;
+          // Preserve element's rotation - do not auto-rotate when snapping to wall or surface
         }
       }
       let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY, rotation: nextRotation };
