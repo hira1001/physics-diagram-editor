@@ -1684,8 +1684,20 @@ export function EditorCanvas({
 
       {dragMode ? (
         <div className="numeric-hud" style={{ left: clamp(pointer.x + 16, 12, size.width - 160), top: clamp(pointer.y + 16, 12, size.height - 80) }}>
-          <span>{dragMode === "angle" ? "角度" : dragMode === "block" ? "位置" : dragMode === "force" ? "長さ" : "移動"}</span>
-          <strong>{dragMode === "angle" ? `${scene.angle}°` : dragMode === "block" ? `${Math.round(scene.blockPosition * 100)}%` : dragMode === "force" ? `${Math.round(scene.forceScale * 100)}%` : `x ${Math.round(scene.diagramOffsetX)}  y ${Math.round(scene.diagramOffsetY)}`}</strong>
+          <span>
+            {dragMode === "angle" ? "斜面角"
+              : dragMode === "element-rotate" ? "回転角"
+              : dragMode === "block" ? "位置"
+              : dragMode === "force" ? "長さ"
+              : "移動"}
+          </span>
+          <strong>
+            {dragMode === "angle" ? `${scene.angle}°`
+              : dragMode === "element-rotate" && selectedElement ? `${Math.round(selectedElement.rotation)}°`
+              : dragMode === "block" ? `${Math.round(scene.blockPosition * 100)}%`
+              : dragMode === "force" ? `${Math.round(scene.forceScale * 100)}%`
+              : `x ${Math.round(scene.diagramOffsetX)}  y ${Math.round(scene.diagramOffsetY)}`}
+          </strong>
         </div>
       ) : null}
 

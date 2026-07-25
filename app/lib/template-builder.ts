@@ -266,5 +266,120 @@ export function buildTemplateScene(template: TemplateId): SceneState {
     };
   }
 
+  if (template === "stacked") {
+    const floor = createDiagramElement("rough-floor", 450, 420, "stacked-floor");
+    floor.width = 600;
+
+    const block2 = createDiagramElement("block", 450, 360, "stacked-block2");
+    block2.label = "m₂";
+    block2.width = 150;
+    block2.height = 80;
+
+    const block1 = createDiagramElement("block", 450, 280, "stacked-block1");
+    block1.label = "m₁";
+    block1.width = 100;
+    block1.height = 60;
+
+    const gravity1 = createReferencedElement("gravity", block1, "stacked-grav1");
+    const gravity2 = createReferencedElement("gravity", block2, "stacked-grav2");
+    const normal1 = createReferencedElement("normal-force", block1, "stacked-norm1");
+
+    const pullForce = createReferencedElement("force", block2, "stacked-pull");
+    pullForce.label = "F";
+    pullForce.rotation = 0;
+
+    const elements: DiagramElement[] = [floor, block2, block1, gravity1, gravity2, normal1, pullForce];
+    const variables: Variable[] = elements.map((item) => createVariableForElement(item));
+
+    return {
+      ...INITIAL_SCENE,
+      surfaceKind: "floor",
+      surfaceRoughness: "rough",
+      elements,
+      variables,
+      showAngle: false,
+      showGravity: false,
+      showNormal: false,
+      showFriction: false,
+      showSpring: false,
+      showPulley: false,
+      selectedId: `element:${block1.id}`,
+    };
+  }
+
+  if (template === "atwood") {
+    const ceiling = createDiagramElement("fixed-end", 450, 80, "atwood-ceiling");
+    ceiling.width = 180;
+
+    const pulley = createDiagramElement("fixed-pulley", 450, 160, "atwood-pulley");
+    pulley.label = "P";
+
+    const blockA = createDiagramElement("block", 380, 380, "atwood-blockA");
+    blockA.label = "m₁";
+
+    const blockB = createDiagramElement("block", 520, 320, "atwood-blockB");
+    blockB.label = "m₂";
+
+    const stringA = createConnection("string", blockA, pulley, "atwood-stringA");
+    const stringB = createConnection("string", pulley, blockB, "atwood-stringB");
+
+    const gravA = createReferencedElement("gravity", blockA, "atwood-gravA");
+    const gravB = createReferencedElement("gravity", blockB, "atwood-gravB");
+    const tensionA = createReferencedElement("tension", blockA, "atwood-tensA");
+    tensionA.label = "T";
+    const tensionB = createReferencedElement("tension", blockB, "atwood-tensB");
+    tensionB.label = "T";
+
+    const elements: DiagramElement[] = [ceiling, pulley, blockA, blockB, stringA, stringB, gravA, gravB, tensionA, tensionB];
+    const variables: Variable[] = elements.map((item) => createVariableForElement(item));
+
+    return {
+      ...INITIAL_SCENE,
+      elements,
+      variables,
+      showAngle: false,
+      showGravity: false,
+      showNormal: false,
+      showFriction: false,
+      showSpring: false,
+      showPulley: false,
+      selectedId: `element:${pulley.id}`,
+    };
+  }
+
+  if (template === "pendulum") {
+    const ceiling = createDiagramElement("fixed-end", 450, 100, "pendulum-ceiling");
+    ceiling.width = 200;
+
+    const sphere = createDiagramElement("sphere", 550, 360, "pendulum-sphere");
+    sphere.label = "m";
+
+    const string = createConnection("string", ceiling, sphere, "pendulum-string");
+    string.label = "L";
+
+    const gravity = createReferencedElement("gravity", sphere, "pendulum-gravity");
+    const tension = createReferencedElement("tension", sphere, "pendulum-tension");
+    tension.label = "T";
+
+    const angle = createDiagramElement("angle-arc", 450, 100, "pendulum-angle");
+    angle.label = "θ";
+
+    const elements: DiagramElement[] = [ceiling, sphere, string, gravity, tension, angle];
+    const variables: Variable[] = elements.map((item) => createVariableForElement(item));
+
+    return {
+      ...INITIAL_SCENE,
+      elements,
+      variables,
+      showAngle: false,
+      showGravity: false,
+      showNormal: false,
+      showFriction: false,
+      showSpring: false,
+      showPulley: false,
+      selectedId: `element:${sphere.id}`,
+    };
+  }
+
   return INITIAL_SCENE;
 }

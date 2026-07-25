@@ -84,7 +84,7 @@ export type SelectionId =
   | `element-label:${string}`
   | null;
 
-export type TemplateId = "horizontal" | "incline" | "pulley" | "rough-wall" | "smooth-incline" | "smooth-wall" | "spring" | "freebody";
+export type TemplateId = "horizontal" | "incline" | "pulley" | "rough-wall" | "smooth-incline" | "smooth-wall" | "spring" | "freebody" | "stacked" | "atwood" | "pendulum";
 
 export type LegacyToolId =
   | "select"
