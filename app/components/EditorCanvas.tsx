@@ -627,6 +627,32 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
     ctx.beginPath(); ctx.arc(endpoint.x, endpoint.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 
+  // Highlight related elements (forces/annotations attached via referenceTargetId)
+  if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
+    const selectedEl = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
+    if (selectedEl) {
+      const relatedElements = scene.elements.filter((el) =>
+        el.referenceTargetId === selectedEl.id
+        || el.startTargetId === selectedEl.id
+        || el.endTargetId === selectedEl.id
+      );
+      for (const rel of relatedElements) {
+        const resolvedRel = resolveDiagramElement(rel, scene.elements);
+        const relRad = resolvedRel.rotation * Math.PI / 180;
+        const relHalfW = resolvedRel.width / 2;
+        const relHalfH = resolvedRel.height / 2;
+        ctx.save();
+        ctx.strokeStyle = "rgba(139, 92, 246, 0.5)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.translate(geometry.contentOrigin.x + resolvedRel.x * scale, geometry.contentOrigin.y + resolvedRel.y * scale);
+        ctx.rotate(relRad);
+        ctx.strokeRect(-relHalfW * scale - 3, -relHalfH * scale - 3, resolvedRel.width * scale + 6, resolvedRel.height * scale + 6);
+        ctx.restore();
+      }
+    }
+  }
+
   // Render selection handles for selected diagram elements
   if (typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
     const selectedElement = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
