@@ -31,11 +31,56 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
     if (target) {
       if (isVectorElement(element.kind)) {
         if (rotationalVectorKinds.has(element.kind)) return { ...element, x: target.x, y: target.y };
-        const radians = element.rotation * Math.PI / 180;
+        const halfW = element.width / 2;
+
+        if (element.kind === "gravity") {
+          return {
+            ...element,
+            rotation: 90,
+            x: target.x,
+            y: target.y + halfW,
+          };
+        }
+
+        if (element.kind === "normal-force" || element.kind === "friction-force") {
+          const surface = catalogSurfacePreset(target.kind);
+          const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(target.height, target.width) * 180 / Math.PI) : 0;
+          const targetRot = target.rotation + slopeAngle;
+          const targetRad = (targetRot * Math.PI) / 180;
+          const contactX = target.x + Math.sin(targetRad) * (target.height / 2);
+          const contactY = target.y + Math.cos(targetRad) * (target.height / 2);
+
+          const vecRot = element.kind === "normal-force" ? targetRot - 90 : targetRot;
+          const vecRad = (vecRot * Math.PI) / 180;
+
+          return {
+            ...element,
+            rotation: vecRot,
+            x: contactX + Math.cos(vecRad) * halfW,
+            y: contactY + Math.sin(vecRad) * halfW,
+          };
+        }
+
+        if (element.kind === "tension" || element.kind === "spring-force") {
+          const vecRad = (element.rotation * Math.PI) / 180;
+          const dirX = Math.cos(vecRad);
+          const dirY = Math.sin(vecRad);
+          const inset = boundaryDistance(target, dirX, dirY);
+          const attachX = target.x + dirX * inset;
+          const attachY = target.y + dirY * inset;
+
+          return {
+            ...element,
+            x: attachX + dirX * halfW,
+            y: attachY + dirY * halfW,
+          };
+        }
+
+        const vecRad = (element.rotation * Math.PI) / 180;
         return {
           ...element,
-          x: target.x + Math.cos(radians) * element.width / 2,
-          y: target.y + Math.sin(radians) * element.width / 2,
+          x: target.x + Math.cos(vecRad) * halfW,
+          y: target.y + Math.sin(vecRad) * halfW,
         };
       }
       if (element.kind === "length-dimension") return { ...element, x: target.x, y: target.y, width: target.width, rotation: target.rotation };

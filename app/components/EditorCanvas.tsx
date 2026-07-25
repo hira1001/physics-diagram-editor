@@ -1312,20 +1312,43 @@ export function EditorCanvas({
         updatedElement.endTargetId = endTarget ? endTarget.id : null;
         updatedElement = resolveDiagramElement(updatedElement, scene.elements);
       } else if (isVectorElement(original.kind)) {
-        const target = findNearbyTargetElement({ x: nextX, y: nextY }, scene.elements, elementId, 45);
-        updatedElement.referenceTargetId = target ? target.id : null;
-        if (target) {
-          const surface = catalogSurfacePreset(target.kind);
-          const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(target.height, target.width) * 180 / Math.PI) : 0;
-          if (original.kind === "gravity") {
-            updatedElement.rotation = 90;
-          } else if (original.kind === "normal-force") {
-            updatedElement.rotation = target.rotation + slopeAngle - 90;
-          } else if (original.kind === "friction-force") {
-            updatedElement.rotation = target.rotation + slopeAngle;
+        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
+        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
+
+        if (original.referenceTargetId) {
+          const currentTarget = scene.elements.find((item) => item.id === original.referenceTargetId);
+          if (currentTarget) {
+            const dist = Math.hypot(contentX - currentTarget.x, contentY - currentTarget.y);
+            if (dist > 65) {
+              updatedElement.referenceTargetId = null;
+              updatedElement.x = contentX;
+              updatedElement.y = contentY;
+            }
           }
         }
-        updatedElement = resolveDiagramElement(updatedElement, scene.elements);
+
+        if (!updatedElement.referenceTargetId) {
+          const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 45);
+          if (target) {
+            updatedElement.referenceTargetId = target.id;
+          }
+        }
+
+        if (updatedElement.referenceTargetId) {
+          const refTarget = scene.elements.find((item) => item.id === updatedElement.referenceTargetId);
+          if (refTarget) {
+            const surface = catalogSurfacePreset(refTarget.kind);
+            const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(refTarget.height, refTarget.width) * 180 / Math.PI) : 0;
+            if (original.kind === "gravity") {
+              updatedElement.rotation = 90;
+            } else if (original.kind === "normal-force") {
+              updatedElement.rotation = refTarget.rotation + slopeAngle - 90;
+            } else if (original.kind === "friction-force") {
+              updatedElement.rotation = refTarget.rotation + slopeAngle;
+            }
+          }
+          updatedElement = resolveDiagramElement(updatedElement, scene.elements);
+        }
       }
       onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updatedElement : item) }, false);
       return;
@@ -1558,6 +1581,16 @@ export function EditorCanvas({
           </> : null}
           {scene.selectedId === "text" ? <><button type="button" title="位置をリセット" onClick={() => onSceneChange({ annotationX: 0.5, annotationY: 0.2 })}><RotateCcw size={14} /></button><button type="button" title="削除" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={14} /></button></> : null}
           {selectedElement && isVectorElement(selectedElement.kind) ? <>
+            {selectedElement.referenceTargetId ? (
+              <button
+                type="button"
+                className="active"
+                title="作用対象を解除 (物体から離す)"
+                onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, referenceTargetId: null } : item) })}
+              >
+                <Unlink size={14} />
+              </button>
+            ) : null}
             <button type="button" title="反転" onClick={() => onSceneChange({ elements: scene.elements.map((item) => item.id === selectedElement.id ? { ...item, rotation: item.rotation + 180 } : item) })}><FlipHorizontal2 size={14} /></button>
             <button disabled={Boolean(componentConstraint)} type="button" title={componentConstraint ? "成分分解済み" : "成分分解"} onClick={decomposeSelectedVector}><MoveUpRight size={14} /></button>
             <button type="button" title={selectedElementHasDependencies ? "参照中・右パネルで削除" : "削除"} disabled={selectedElementHasDependencies} onClick={() => onSceneChange({ elements: scene.elements.filter((item) => item.id !== selectedElement.id), selectedId: null })}><Trash2 size={14} /></button>
