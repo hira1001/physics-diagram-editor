@@ -153,10 +153,18 @@ export function findGroundingSurfaceSnap(
     const projY = seg.p1.y + t * (seg.p2.y - seg.p1.y);
 
     const rad = (seg.angle * Math.PI) / 180;
-    const normalX = Math.sin(rad);
-    const normalY = -Math.cos(rad);
+    let normalX = Math.sin(rad);
+    let normalY = -Math.cos(rad);
 
-    const clearance = element.height / 2;
+    const isVerticalWall = Math.abs(Math.sin(rad)) > 0.8;
+    let clearance = element.height / 2;
+
+    if (isVerticalWall) {
+      clearance = element.width / 2;
+      if (nextX < projX) normalX = -Math.abs(normalX);
+      else normalX = Math.abs(normalX);
+    }
+
     const targetX = projX + normalX * clearance;
     const targetY = projY + normalY * clearance;
 

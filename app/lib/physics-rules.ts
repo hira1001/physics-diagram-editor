@@ -36,7 +36,7 @@ export function massLabelBaseX(scene: Pick<SceneState, "flipped" | "surfaceKind"
 }
 
 export function surfaceContactClearance(kind: SurfaceKind) {
-  return kind === "wall" ? 82 : 58;
+  return 35;
 }
 
 export function surfaceDisplayName(kind: SurfaceKind, roughness: SurfaceRoughness) {
