@@ -116,16 +116,16 @@ export function findGroundingSurfaceSnap(
         y: item.y + Math.sin(rad) * (item.width / 2) - Math.cos(rad) * (item.height / 2),
       };
       segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: slopeAngle });
-    } else if (["smooth-floor", "rough-floor"].includes(item.kind)) {
+    } else if (["smooth-floor", "rough-floor", "smooth-wall", "rough-wall"].includes(item.kind)) {
       const rad = item.rotation * Math.PI / 180;
       const p1 = { x: item.x - Math.cos(rad) * (item.width / 2), y: item.y - Math.sin(rad) * (item.width / 2) };
       const p2 = { x: item.x + Math.cos(rad) * (item.width / 2), y: item.y + Math.sin(rad) * (item.width / 2) };
       segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: item.rotation });
-    } else if (["smooth-wall", "rough-wall"].includes(item.kind)) {
+    } else if (item.kind === "fixed-end") {
       const rad = item.rotation * Math.PI / 180;
       const p1 = { x: item.x - Math.sin(rad) * (item.height / 2), y: item.y + Math.cos(rad) * (item.height / 2) };
       const p2 = { x: item.x + Math.sin(rad) * (item.height / 2), y: item.y - Math.cos(rad) * (item.height / 2) };
-      segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: item.rotation + 90 });
+      segments.push({ name: "固定端壁面", p1, p2, angle: item.rotation + 90 });
     } else if (["block", "cart"].includes(item.kind)) {
       const rad = item.rotation * Math.PI / 180;
       const p1 = {
@@ -141,13 +141,13 @@ export function findGroundingSurfaceSnap(
   }
 
   let closest: { segment: GroundingSegment; snappedX: number; snappedY: number; angle: number } | null = null;
-  let minDist = 16;
+  let minDist = 45;
 
   for (const seg of segments) {
     const l2 = (seg.p2.x - seg.p1.x) ** 2 + (seg.p2.y - seg.p1.y) ** 2;
     if (l2 === 0) continue;
     let t = ((nextX - seg.p1.x) * (seg.p2.x - seg.p1.x) + (nextY - seg.p1.y) * (seg.p2.y - seg.p1.y)) / l2;
-    t = Math.max(0.05, Math.min(0.95, t));
+    t = Math.max(0, Math.min(1, t));
 
     const projX = seg.p1.x + t * (seg.p2.x - seg.p1.x);
     const projY = seg.p1.y + t * (seg.p2.y - seg.p1.y);
