@@ -1251,7 +1251,7 @@ export function EditorCanvas({
           y: original.y + Math.sin(rad) * (original.width / 2),
         };
         const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 60);
-        const startPos = target ? getClosestFaceMidpoint(target, endPos) : { x: contentX, y: contentY };
+        const startPos = target ? getClosestFaceMidpoint(target, { x: contentX, y: contentY }) : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
         const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);
@@ -1285,7 +1285,7 @@ export function EditorCanvas({
           y: original.y - Math.sin(rad) * (original.width / 2),
         };
         const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 60);
-        const endPos = target ? getClosestFaceMidpoint(target, startPos) : { x: contentX, y: contentY };
+        const endPos = target ? getClosestFaceMidpoint(target, { x: contentX, y: contentY }) : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
         const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);
