@@ -65,6 +65,53 @@ export function getElementActionPoint(element: DiagramElement, elements: readonl
   return { x: element.x, y: element.y };
 }
 
+export function getClosestFaceMidpoint(element: DiagramElement, relativeToPoint: { x: number; y: number }): { x: number; y: number; normalAngle: number } {
+  const rad = element.rotation * Math.PI / 180;
+  const halfW = element.kind === "point-mass" ? 7 : element.width / 2;
+  const halfH = element.kind === "point-mass" ? 7 : element.height / 2;
+
+  // 4 face midpoints in world coordinates
+  const faces = [
+    {
+      // Left face
+      x: element.x - Math.cos(rad) * halfW,
+      y: element.y - Math.sin(rad) * halfW,
+      normalAngle: element.rotation + 180,
+    },
+    {
+      // Right face
+      x: element.x + Math.cos(rad) * halfW,
+      y: element.y + Math.sin(rad) * halfW,
+      normalAngle: element.rotation,
+    },
+    {
+      // Top face
+      x: element.x + Math.sin(rad) * halfH,
+      y: element.y - Math.cos(rad) * halfH,
+      normalAngle: element.rotation - 90,
+    },
+    {
+      // Bottom face
+      x: element.x - Math.sin(rad) * halfH,
+      y: element.y + Math.cos(rad) * halfH,
+      normalAngle: element.rotation + 90,
+    },
+  ];
+
+  let closest = faces[0];
+  let minDist = Math.hypot(faces[0].x - relativeToPoint.x, faces[0].y - relativeToPoint.y);
+
+  for (let i = 1; i < faces.length; i++) {
+    const dist = Math.hypot(faces[i].x - relativeToPoint.x, faces[i].y - relativeToPoint.y);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = faces[i];
+    }
+  }
+
+  return closest;
+}
+
 export function resolveDiagramElement(element: DiagramElement, elements: readonly DiagramElement[]): DiagramElement {
   if (element.referenceTargetId) {
     const rawTarget = elements.find((item) => item.id === element.referenceTargetId);
@@ -127,23 +174,25 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
   const start = elements.find((item) => item.id === element.startTargetId);
   const end = elements.find((item) => item.id === element.endTargetId);
   if (!start || !end || start.id === end.id) return element;
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const centerDistance = Math.hypot(dx, dy);
-  if (centerDistance < 1e-6) return element;
-  const unitX = dx / centerDistance;
-  const unitY = dy / centerDistance;
-  const startInset = boundaryDistance(start, unitX, unitY);
-  const endInset = boundaryDistance(end, -unitX, -unitY);
-  const startX = start.x + unitX * startInset;
-  const startY = start.y + unitY * startInset;
-  const endX = end.x - unitX * endInset;
-  const endY = end.y - unitY * endInset;
+
+  const startFace = getClosestFaceMidpoint(start, { x: end.x, y: end.y });
+  const endFace = getClosestFaceMidpoint(end, { x: startFace.x, y: startFace.y });
+
+  const startX = startFace.x;
+  const startY = startFace.y;
+  const endX = endFace.x;
+  const endY = endFace.y;
+
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 1e-6) return element;
+
   return {
     ...element,
     height: element.height,
     rotation: Math.atan2(dy, dx) * 180 / Math.PI,
-    width: Math.max(8, Math.hypot(endX - startX, endY - startY)),
+    width: Math.max(8, dist),
     x: (startX + endX) / 2,
     y: (startY + endY) / 2,
   };
