@@ -904,6 +904,7 @@ export function EditorCanvas({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const dragStartSceneRef = useRef<SceneState | null>(null);
   const dragStartPointRef = useRef<Point | null>(null);
+  const activeResizeHandleRef = useRef<string | null>(null);
   const [size, setSize] = useState({ width: 900, height: 620 });
   const [pointer, setPointer] = useState<Point>({ x: 0, y: 0 });
   const [dragMode, setDragMode] = useState<"angle" | "angle-label" | "block" | "box-select" | "diagram" | "element" | "element-label" | "element-rotate" | "element-resize" | "element-start-point" | "element-end-point" | "element-vector-tip" | "force" | "force-gravity-label" | "force-normal-label" | "force-friction-label" | "freebody" | "mass-label" | "text" | null>(null);
@@ -1085,22 +1086,28 @@ export function EditorCanvas({
         const halfW = element.width / 2;
         const halfH = element.height / 2;
         const handles = [
-          { x: -halfW - 4, y: -halfH - 4 },
-          { x: halfW + 4, y: -halfH - 4 },
-          { x: -halfW - 4, y: halfH + 4 },
-          { x: halfW + 4, y: halfH + 4 },
-          { x: 0, y: -halfH - 4 },
-          { x: 0, y: halfH + 4 },
-          { x: -halfW - 4, y: 0 },
-          { x: halfW + 4, y: 0 },
+          { name: "top-left", x: -halfW - 4, y: -halfH - 4 },
+          { name: "top-right", x: halfW + 4, y: -halfH - 4 },
+          { name: "bottom-left", x: -halfW - 4, y: halfH + 4 },
+          { name: "bottom-right", x: halfW + 4, y: halfH + 4 },
+          { name: "top", x: 0, y: -halfH - 4 },
+          { name: "bottom", x: 0, y: halfH + 4 },
+          { name: "left", x: -halfW - 4, y: 0 },
+          { name: "right", x: halfW + 4, y: 0 },
         ];
-        const isNearResizeHandle = !isVectorElement(element.kind) && handles.some((h) => {
-          const hWorld = {
-            x: geometry.contentOrigin.x + (element.x + h.x * Math.cos(rad) - h.y * Math.sin(rad)) * geometry.scale,
-            y: geometry.contentOrigin.y + (element.y + h.x * Math.sin(rad) + h.y * Math.cos(rad)) * geometry.scale,
-          };
-          return distance(point, hWorld) < 18;
-        });
+        let clickedResizeHandle: string | null = null;
+        if (!isVectorElement(element.kind)) {
+          for (const h of handles) {
+            const hWorld = {
+              x: geometry.contentOrigin.x + (element.x + h.x * Math.cos(rad) - h.y * Math.sin(rad)) * geometry.scale,
+              y: geometry.contentOrigin.y + (element.y + h.x * Math.sin(rad) + h.y * Math.cos(rad)) * geometry.scale,
+            };
+            if (distance(point, hWorld) < 18) {
+              clickedResizeHandle = h.name;
+              break;
+            }
+          }
+        }
 
         const startHandleWorld = {
           x: geometry.contentOrigin.x + (element.x - Math.cos(rad) * halfW) * geometry.scale,
@@ -1115,7 +1122,8 @@ export function EditorCanvas({
           setDragMode("element-label");
         } else if (distance(point, rotateHandleWorld) < 18) {
           setDragMode("element-rotate");
-        } else if (isNearResizeHandle) {
+        } else if (clickedResizeHandle) {
+          activeResizeHandleRef.current = clickedResizeHandle;
           setDragMode("element-resize");
         } else if (isConnectionElement(element.kind) && distance(point, startHandleWorld) < 18) {
           setDragMode("element-start-point");
@@ -1261,15 +1269,29 @@ export function EditorCanvas({
       }
     }
 
-    if (dragMode === "element-resize" && startScene && typeof scene.selectedId === "string") {
+    if (dragMode === "element-resize" && startScene && startPoint && typeof scene.selectedId === "string") {
       const elementId = scene.selectedId.slice("element:".length);
-      const element = scene.elements.find((item) => item.id === elementId);
-      if (element) {
-        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
-        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
-        const newW = Math.max(16, Math.round(Math.abs(contentX - element.x) * 2));
-        const newH = Math.max(16, Math.round(Math.abs(contentY - element.y) * 2));
-        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newW, height: newH } : item) }, false);
+      const original = startScene.elements.find((item) => item.id === elementId);
+      if (original) {
+        const rad = (original.rotation * Math.PI) / 180;
+        const dx = (point.x - startPoint.x) / geometry.scale;
+        const dy = (point.y - startPoint.y) / geometry.scale;
+        const localDx = dx * Math.cos(-rad) - dy * Math.sin(-rad);
+        const localDy = dx * Math.sin(-rad) + dy * Math.cos(-rad);
+
+        const handle = activeResizeHandleRef.current ?? "right";
+        let newWidth = original.width;
+        let newHeight = original.height;
+
+        if (handle.includes("right")) newWidth = Math.max(16, original.width + localDx * 2);
+        else if (handle.includes("left")) newWidth = Math.max(16, original.width - localDx * 2);
+
+        if (handle.includes("bottom")) newHeight = Math.max(16, original.height + localDy * 2);
+        else if (handle.includes("top")) newHeight = Math.max(16, original.height - localDy * 2);
+
+        let updated = { ...original, width: Math.round(newWidth), height: Math.round(newHeight) };
+        updated = resolveDiagramElement(updated, scene.elements);
+        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updated : item) }, false);
         return;
       }
     }
