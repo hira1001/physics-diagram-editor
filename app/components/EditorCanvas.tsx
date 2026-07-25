@@ -1258,18 +1258,7 @@ export function EditorCanvas({
         return;
       }
 
-      if (original.referenceTargetId && isVectorElement(original.kind)) {
-        const target = scene.elements.find((item) => item.id === original.referenceTargetId);
-        if (!target) return;
-        const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
-        const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
-        const dx = contentX - target.x;
-        const dy = contentY - target.y;
-        const nextWidth = clamp(Math.hypot(dx, dy), 8, 1000);
-        const nextRotation = Math.atan2(dy, dx) * 180 / Math.PI;
-        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: nextWidth, rotation: nextRotation } : item) }, false);
-        return;
-      }
+
       let nextX = original.x + (point.x - startPoint.x) / geometry.scale;
       let nextY = original.y + (point.y - startPoint.y) / geometry.scale;
 
