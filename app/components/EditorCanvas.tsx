@@ -974,9 +974,27 @@ export function EditorCanvas({
         } else if (event.shiftKey || event.ctrlKey) {
           deg = Math.round(deg / 15) * 15 % 360;
         } else if (scene.snapEnabled) {
-          const surfaceSnap = findNearbySurfaceSnap(point, scene, geometry, elementId);
-          if (surfaceSnap && Math.abs((surfaceSnap.snappedAngle % 360) - (deg % 360)) <= 6) {
-            deg = (surfaceSnap.snappedAngle + 360) % 360;
+          const targetAngles: number[] = [];
+          if (scene.surfaceKind === "incline") {
+            const inclineAngle = (scene.flipped ? 1 : -1) * scene.angle;
+            targetAngles.push(inclineAngle, (inclineAngle + 360) % 360, (inclineAngle + 180) % 360);
+          }
+          for (const elem of scene.elements) {
+            if (elem.id === elementId) continue;
+            if (["smooth-incline", "rough-incline", "wedge"].includes(elem.kind)) {
+              const slopeAngle = elem.rotation - Math.round(Math.atan2(elem.height, elem.width) * 180 / Math.PI);
+              targetAngles.push(slopeAngle, (slopeAngle + 360) % 360, (slopeAngle + 180) % 360);
+            }
+          }
+
+          const matchedSurfaceAngle = targetAngles.find((target) => {
+            const normTarget = (target % 360 + 360) % 360;
+            const normDeg = (deg % 360 + 360) % 360;
+            return Math.abs(normTarget - normDeg) <= 10 || Math.abs(normTarget - normDeg - 360) <= 10;
+          });
+
+          if (matchedSurfaceAngle !== undefined) {
+            deg = (matchedSurfaceAngle % 360 + 360) % 360;
           } else {
             const majorAngles = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 360];
             const closest = majorAngles.reduce((prev, curr) => Math.abs(curr - deg) < Math.abs(prev - deg) ? curr : prev);
@@ -1163,7 +1181,18 @@ export function EditorCanvas({
           nextY = Math.round(nextY / 10) * 10;
         }
       }
-      let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY };
+      let nextRotation = original.rotation;
+      if (scene.snapEnabled && !event.altKey && !isConnectionElement(original.kind) && !["smooth-incline", "rough-incline", "wedge"].includes(original.kind)) {
+        const elementWorld = {
+          x: geometry.contentOrigin.x + nextX * geometry.scale,
+          y: geometry.contentOrigin.y + nextY * geometry.scale,
+        };
+        const surfaceSnap = findNearbySurfaceSnap(elementWorld, scene, geometry, elementId);
+        if (surfaceSnap) {
+          nextRotation = surfaceSnap.snappedAngle;
+        }
+      }
+      let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY, rotation: nextRotation };
       if (isConnectionElement(original.kind)) {
         const radians = original.rotation * Math.PI / 180;
         const halfW = original.width / 2;
