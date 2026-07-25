@@ -372,6 +372,7 @@ kbd {
   border-right: 1px solid var(--border);
   background: #f6f8fa;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 4px 2px;
   gap: 2px;
 }

@@ -216,12 +216,12 @@ export function drawDiagramElement(
     case "rigid-joint":
       ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); line(ctx, -w / 2, 0, w / 2, 0); line(ctx, 0, -h / 2, 0, h / 2); break;
     case "distributed-load": {
-      const arrowCount = 5;
+      const arrowCount = Math.max(3, Math.round(w / 35));
       line(ctx, -w / 2, -h / 2, w / 2, -h / 2);
       line(ctx, -w / 2, h / 2, w / 2, h / 2);
       ctx.fillStyle = ctx.strokeStyle;
       for (let i = 0; i < arrowCount; i++) {
-        const x = -w / 2 + (w / (arrowCount - 1)) * i;
+        const x = -w / 2 + (w / Math.max(1, arrowCount - 1)) * i;
         line(ctx, x, -h / 2, x, h / 2);
         ctx.beginPath(); ctx.moveTo(x, h / 2); ctx.lineTo(x - 4, h / 2 - 8); ctx.lineTo(x + 4, h / 2 - 8); ctx.closePath(); ctx.fill();
       }
@@ -229,12 +229,12 @@ export function drawDiagramElement(
       break;
     }
     case "triangular-load": {
-      const arrowCount = 5;
+      const arrowCount = Math.max(3, Math.round(w / 35));
       line(ctx, -w / 2, h / 2, w / 2, -h / 2);
       line(ctx, -w / 2, h / 2, w / 2, h / 2);
       ctx.fillStyle = ctx.strokeStyle;
       for (let i = 0; i < arrowCount; i++) {
-        const t = i / (arrowCount - 1);
+        const t = i / Math.max(1, arrowCount - 1);
         const x = -w / 2 + w * t;
         const topY = h / 2 - h * t;
         line(ctx, x, topY, x, h / 2);
