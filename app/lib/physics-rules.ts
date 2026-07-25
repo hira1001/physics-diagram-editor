@@ -66,9 +66,9 @@ export function surfacePlacementPatch(preset: SurfacePreset): Partial<SceneState
     contactConstraint: true,
     selectedId: "incline",
     showAngle: preset.kind === "incline",
-    showFriction: preset.roughness === "rough",
+    showFriction: false,
     showGravity: true,
-    showNormal: true,
+    showNormal: false,
     surfaceKind: preset.kind,
     surfaceRoughness: preset.roughness,
   };

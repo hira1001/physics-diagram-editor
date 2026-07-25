@@ -53,9 +53,9 @@ describe("PHY-040..046 contact surface semantics", () => {
     expect(massLabelBaseX({ flipped: true, surfaceKind: "wall" })).toBe(-25);
   });
 
-  it("places smooth surfaces without friction and rough surfaces with friction", () => {
+  it("places smooth and rough surfaces without friction by default", () => {
     expect(surfacePlacementPatch({ kind: "wall", roughness: "smooth" }).showFriction).toBe(false);
-    expect(surfacePlacementPatch({ kind: "wall", roughness: "rough" }).showFriction).toBe(true);
+    expect(surfacePlacementPatch({ kind: "wall", roughness: "rough" }).showFriction).toBe(false);
   });
 
   it("reports, but does not delete, friction left on a smooth surface", () => {

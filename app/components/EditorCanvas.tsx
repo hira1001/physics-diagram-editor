@@ -1552,39 +1552,11 @@ export function EditorCanvas({
           const newElements: DiagramElement[] = [];
           const newVars = scene.variables.slice();
 
-          // Always add gravity if missing
+          // Always add gravity if missing (normal force N and friction f are added on-demand via + N button / N key)
           if (!attached.has("gravity")) {
             const grav = createReferencedElement("gravity", element);
             newElements.push(grav);
             newVars.push(createVariableForElement(grav));
-          }
-
-          // Add normal force if missing
-          if (!attached.has("normal-force")) {
-            const norm = createReferencedElement("normal-force", element);
-            // Set rotation based on grounding surface angle
-            norm.rotation = groundingSnap.angle - 90;
-            const resolved = resolveDiagramElement(norm, [...scene.elements, norm]);
-            newElements.push(resolved);
-            newVars.push(createVariableForElement(resolved));
-          }
-
-          // Add friction force if grounding surface is rough
-          if (!attached.has("friction-force")) {
-            const segName = groundingSnap.segment.name.toLowerCase();
-            const isRoughSurface = segName.includes("粗い") || segName.includes("rough") || segName.includes("μ");
-            // Also check if the surface element itself is rough
-            const surfaceElement = scene.elements.find((el) => {
-              if (!["smooth-incline", "rough-incline", "smooth-floor", "rough-floor", "smooth-wall", "rough-wall"].includes(el.kind)) return false;
-              return el.kind.startsWith("rough-");
-            });
-            if (isRoughSurface || surfaceElement) {
-              const fric = createReferencedElement("friction-force", element);
-              fric.rotation = groundingSnap.angle;
-              const resolved = resolveDiagramElement(fric, [...scene.elements, fric]);
-              newElements.push(resolved);
-              newVars.push(createVariableForElement(resolved));
-            }
           }
 
           if (newElements.length > 0) {
