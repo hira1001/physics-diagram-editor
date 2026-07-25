@@ -38,7 +38,7 @@ export function getElementActionPoint(element: DiagramElement, elements: readonl
         const targetRot = target.rotation + slopeAngle;
         const targetRad = (targetRot * Math.PI) / 180;
         return {
-          x: target.x + Math.sin(targetRad) * (target.height / 2),
+          x: target.x - Math.sin(targetRad) * (target.height / 2),
           y: target.y + Math.cos(targetRad) * (target.height / 2),
         };
       }
@@ -88,7 +88,7 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
           const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(target.height, target.width) * 180 / Math.PI) : 0;
           const targetRot = target.rotation + slopeAngle;
           const targetRad = (targetRot * Math.PI) / 180;
-          const contactX = target.x + Math.sin(targetRad) * (target.height / 2);
+          const contactX = target.x - Math.sin(targetRad) * (target.height / 2);
           const contactY = target.y + Math.cos(targetRad) * (target.height / 2);
 
           return {
@@ -154,9 +154,10 @@ export function createReferencedElement(kind: DiagramElementKind, target: Diagra
   element.referenceTargetId = target.id;
   const surface = catalogSurfacePreset(target.kind);
   const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(target.height, target.width) * 180 / Math.PI) : 0;
-  if (surface && kind === "normal-force") element.rotation = target.rotation + slopeAngle - 90;
-  if (surface && kind === "friction-force") element.rotation = target.rotation + slopeAngle;
-  if (surface && (kind === "angle-arc" || kind === "local-axis")) element.rotation = target.rotation + slopeAngle;
+  const targetRot = target.rotation + slopeAngle;
+  if (kind === "normal-force") element.rotation = targetRot - 90;
+  if (kind === "friction-force") element.rotation = targetRot;
+  if (kind === "angle-arc" || kind === "local-axis") element.rotation = targetRot;
   return resolveDiagramElement(element, [target, element]);
 }
 
