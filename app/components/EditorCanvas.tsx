@@ -1485,11 +1485,70 @@ export function EditorCanvas({
   }, [activeTool, canvasPoint, dragMode, geometry, onPointerPositionChange, onSceneChange, scene.angle, scene.contactConstraint, scene.elements, scene.flipped, scene.selectedId, scene.snapEnabled, scene.surfaceKind]);
 
   const handlePointerUp = useCallback(() => {
+    // Auto-generate forces when a body element is grounded on a surface after drag
+    if (dragMode === "element" && typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")) {
+      const elementId = scene.selectedId.slice("element:".length);
+      const element = scene.elements.find((item) => item.id === elementId);
+      if (element && !isVectorElement(element.kind) && !isConnectionElement(element.kind)
+        && !["smooth-incline", "rough-incline", "wedge"].includes(element.kind)
+        && scene.snapEnabled) {
+        const groundingSnap = findGroundingSurfaceSnap(element, element.x, element.y, scene, geometry);
+        if (groundingSnap) {
+          // Check which forces are already attached
+          const attached = new Set(scene.elements.filter((el) => el.referenceTargetId === elementId).map((el) => el.kind));
+          const newElements: DiagramElement[] = [];
+          const newVars = scene.variables.slice();
+
+          // Always add gravity if missing
+          if (!attached.has("gravity")) {
+            const grav = createReferencedElement("gravity", element);
+            newElements.push(grav);
+            newVars.push(createVariableForElement(grav));
+          }
+
+          // Add normal force if missing
+          if (!attached.has("normal-force")) {
+            const norm = createReferencedElement("normal-force", element);
+            // Set rotation based on grounding surface angle
+            norm.rotation = groundingSnap.angle - 90;
+            const resolved = resolveDiagramElement(norm, [...scene.elements, norm]);
+            newElements.push(resolved);
+            newVars.push(createVariableForElement(resolved));
+          }
+
+          // Add friction force if grounding surface is rough
+          if (!attached.has("friction-force")) {
+            const segName = groundingSnap.segment.name.toLowerCase();
+            const isRoughSurface = segName.includes("粗い") || segName.includes("rough") || segName.includes("μ");
+            // Also check if the surface element itself is rough
+            const surfaceElement = scene.elements.find((el) => {
+              if (!["smooth-incline", "rough-incline", "smooth-floor", "rough-floor", "smooth-wall", "rough-wall"].includes(el.kind)) return false;
+              return el.kind.startsWith("rough-");
+            });
+            if (isRoughSurface || surfaceElement) {
+              const fric = createReferencedElement("friction-force", element);
+              fric.rotation = groundingSnap.angle;
+              const resolved = resolveDiagramElement(fric, [...scene.elements, fric]);
+              newElements.push(resolved);
+              newVars.push(createVariableForElement(resolved));
+            }
+          }
+
+          if (newElements.length > 0) {
+            onSceneChange({
+              elements: [...scene.elements, ...newElements],
+              variables: newVars,
+            });
+          }
+        }
+      }
+    }
+
     if (dragMode && dragStartSceneRef.current) onCommitSnapshot(dragStartSceneRef.current);
     dragStartSceneRef.current = null;
     dragStartPointRef.current = null;
     setDragMode(null);
-  }, [dragMode, onCommitSnapshot]);
+  }, [dragMode, geometry, onCommitSnapshot, onSceneChange, scene]);
 
   const hudPosition = useMemo(() => {
     if (!scene.selectedId) return null;
