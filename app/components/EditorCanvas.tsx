@@ -1286,7 +1286,13 @@ export function EditorCanvas({
         }
       }
       let nextRotation = original.rotation;
-      if (scene.snapEnabled && !event.altKey && !isConnectionElement(original.kind) && !["smooth-incline", "rough-incline", "wedge"].includes(original.kind)) {
+      if (
+        scene.snapEnabled &&
+        !event.altKey &&
+        !isConnectionElement(original.kind) &&
+        !isVectorElement(original.kind) &&
+        !["smooth-incline", "rough-incline", "wedge"].includes(original.kind)
+      ) {
         const groundingSnap = findGroundingSurfaceSnap(original, nextX, nextY, scene, geometry);
         if (groundingSnap) {
           nextX = groundingSnap.snappedX;
@@ -1304,6 +1310,21 @@ export function EditorCanvas({
         const endTarget = findNearbyTargetElement(endPos, scene.elements, elementId, 40);
         updatedElement.startTargetId = startTarget ? startTarget.id : null;
         updatedElement.endTargetId = endTarget ? endTarget.id : null;
+        updatedElement = resolveDiagramElement(updatedElement, scene.elements);
+      } else if (isVectorElement(original.kind)) {
+        const target = findNearbyTargetElement({ x: nextX, y: nextY }, scene.elements, elementId, 45);
+        updatedElement.referenceTargetId = target ? target.id : null;
+        if (target) {
+          const surface = catalogSurfacePreset(target.kind);
+          const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(target.height, target.width) * 180 / Math.PI) : 0;
+          if (original.kind === "gravity") {
+            updatedElement.rotation = 90;
+          } else if (original.kind === "normal-force") {
+            updatedElement.rotation = target.rotation + slopeAngle - 90;
+          } else if (original.kind === "friction-force") {
+            updatedElement.rotation = target.rotation + slopeAngle;
+          }
+        }
         updatedElement = resolveDiagramElement(updatedElement, scene.elements);
       }
       onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updatedElement : item) }, false);
