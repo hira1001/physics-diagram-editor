@@ -135,7 +135,7 @@ export function findGroundingSurfaceSnap(
   }
 
   let closest: { segment: GroundingSegment; snappedX: number; snappedY: number; angle: number } | null = null;
-  let minDist = 38;
+  let minDist = 16;
 
   for (const seg of segments) {
     const l2 = (seg.p2.x - seg.p1.x) ** 2 + (seg.p2.y - seg.p1.y) ** 2;
