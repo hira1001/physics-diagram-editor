@@ -65,6 +65,110 @@ export function findNearbySurfaceSnap(
   return { ...closest, distance: minDist };
 }
 
+export interface GroundingSegment {
+  name: string;
+  p1: Point;
+  p2: Point;
+  angle: number;
+}
+
+export function findGroundingSurfaceSnap(
+  element: DiagramElement,
+  nextX: number,
+  nextY: number,
+  scene: SceneState,
+  geometry: Geometry
+) {
+  const segments: GroundingSegment[] = [];
+  const contentOrigin = geometry.contentOrigin;
+  const scale = geometry.scale;
+
+  if (scene.surfaceKind === "incline") {
+    const angle = (scene.flipped ? 1 : -1) * scene.angle;
+    const startContent = {
+      x: (geometry.start.x - contentOrigin.x) / scale,
+      y: (geometry.start.y - contentOrigin.y) / scale,
+    };
+    const endContent = {
+      x: (geometry.end.x - contentOrigin.x) / scale,
+      y: (geometry.end.y - contentOrigin.y) / scale,
+    };
+    segments.push({ name: `斜面 (${scene.angle}°)`, p1: startContent, p2: endContent, angle });
+  } else if (scene.surfaceKind === "floor") {
+    segments.push({ name: "水平床", p1: { x: 0, y: 474 }, p2: { x: 1000, y: 474 }, angle: 0 });
+  } else if (scene.surfaceKind === "wall") {
+    const wallX = scene.flipped ? 300 : 700;
+    segments.push({ name: "垂直壁", p1: { x: wallX, y: 0 }, p2: { x: wallX, y: 1000 }, angle: 90 });
+  }
+
+  for (const item of scene.elements) {
+    if (item.id === element.id) continue;
+    if (["smooth-incline", "rough-incline", "wedge"].includes(item.kind)) {
+      const rad = item.rotation * Math.PI / 180;
+      const slopeAngle = item.rotation - Math.round(Math.atan2(item.height, item.width) * 180 / Math.PI);
+      const p1 = {
+        x: item.x - Math.cos(rad) * (item.width / 2) - Math.sin(rad) * (item.height / 2),
+        y: item.y - Math.sin(rad) * (item.width / 2) + Math.cos(rad) * (item.height / 2),
+      };
+      const p2 = {
+        x: item.x + Math.cos(rad) * (item.width / 2) + Math.sin(rad) * (item.height / 2),
+        y: item.y + Math.sin(rad) * (item.width / 2) - Math.cos(rad) * (item.height / 2),
+      };
+      segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: slopeAngle });
+    } else if (["smooth-floor", "rough-floor"].includes(item.kind)) {
+      const rad = item.rotation * Math.PI / 180;
+      const p1 = { x: item.x - Math.cos(rad) * (item.width / 2), y: item.y - Math.sin(rad) * (item.width / 2) };
+      const p2 = { x: item.x + Math.cos(rad) * (item.width / 2), y: item.y + Math.sin(rad) * (item.width / 2) };
+      segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: item.rotation });
+    } else if (["block", "cart"].includes(item.kind)) {
+      const rad = item.rotation * Math.PI / 180;
+      const p1 = {
+        x: item.x - Math.cos(rad) * (item.width / 2) + Math.sin(rad) * (item.height / 2),
+        y: item.y - Math.sin(rad) * (item.width / 2) - Math.cos(rad) * (item.height / 2),
+      };
+      const p2 = {
+        x: item.x + Math.cos(rad) * (item.width / 2) + Math.sin(rad) * (item.height / 2),
+        y: item.y + Math.sin(rad) * (item.width / 2) - Math.cos(rad) * (item.height / 2),
+      };
+      segments.push({ name: `${catalogEntry(item.kind).name} 天面`, p1, p2, angle: item.rotation });
+    }
+  }
+
+  let closest: { segment: GroundingSegment; snappedX: number; snappedY: number; angle: number } | null = null;
+  let minDist = 38;
+
+  for (const seg of segments) {
+    const l2 = (seg.p2.x - seg.p1.x) ** 2 + (seg.p2.y - seg.p1.y) ** 2;
+    if (l2 === 0) continue;
+    let t = ((nextX - seg.p1.x) * (seg.p2.x - seg.p1.x) + (nextY - seg.p1.y) * (seg.p2.y - seg.p1.y)) / l2;
+    t = Math.max(0.05, Math.min(0.95, t));
+
+    const projX = seg.p1.x + t * (seg.p2.x - seg.p1.x);
+    const projY = seg.p1.y + t * (seg.p2.y - seg.p1.y);
+
+    const rad = (seg.angle * Math.PI) / 180;
+    const normalX = Math.sin(rad);
+    const normalY = -Math.cos(rad);
+
+    const clearance = element.height / 2;
+    const targetX = projX + normalX * clearance;
+    const targetY = projY + normalY * clearance;
+
+    const dist = Math.hypot(nextX - targetX, nextY - targetY);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = {
+        segment: seg,
+        snappedX: targetX,
+        snappedY: targetY,
+        angle: seg.angle,
+      };
+    }
+  }
+
+  return closest;
+}
+
 function findNearbyTargetElement(
   point: { x: number; y: number },
   elements: readonly DiagramElement[],
@@ -1181,7 +1285,16 @@ export function EditorCanvas({
           nextY = Math.round(nextY / 10) * 10;
         }
       }
-      let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY };
+      let nextRotation = original.rotation;
+      if (scene.snapEnabled && !event.altKey && !isConnectionElement(original.kind) && !["smooth-incline", "rough-incline", "wedge"].includes(original.kind)) {
+        const groundingSnap = findGroundingSurfaceSnap(original, nextX, nextY, scene, geometry);
+        if (groundingSnap) {
+          nextX = groundingSnap.snappedX;
+          nextY = groundingSnap.snappedY;
+          nextRotation = groundingSnap.angle;
+        }
+      }
+      let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY, rotation: nextRotation };
       if (isConnectionElement(original.kind)) {
         const radians = original.rotation * Math.PI / 180;
         const halfW = original.width / 2;
