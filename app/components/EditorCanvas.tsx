@@ -121,6 +121,11 @@ export function findGroundingSurfaceSnap(
       const p1 = { x: item.x - Math.cos(rad) * (item.width / 2), y: item.y - Math.sin(rad) * (item.width / 2) };
       const p2 = { x: item.x + Math.cos(rad) * (item.width / 2), y: item.y + Math.sin(rad) * (item.width / 2) };
       segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: item.rotation });
+    } else if (["smooth-wall", "rough-wall"].includes(item.kind)) {
+      const rad = item.rotation * Math.PI / 180;
+      const p1 = { x: item.x - Math.sin(rad) * (item.height / 2), y: item.y + Math.cos(rad) * (item.height / 2) };
+      const p2 = { x: item.x + Math.sin(rad) * (item.height / 2), y: item.y - Math.cos(rad) * (item.height / 2) };
+      segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: item.rotation + 90 });
     } else if (["block", "cart"].includes(item.kind)) {
       const rad = item.rotation * Math.PI / 180;
       const p1 = {
@@ -1281,16 +1286,51 @@ export function EditorCanvas({
         const localDy = dx * Math.sin(-rad) + dy * Math.cos(-rad);
 
         const handle = activeResizeHandleRef.current ?? "right";
+        const isCorner = handle.includes("-");
+        const isCenterScale = event.ctrlKey;
+
         let newWidth = original.width;
         let newHeight = original.height;
+        let localShiftX = 0;
+        let localShiftY = 0;
 
-        if (handle.includes("right")) newWidth = Math.max(16, original.width + localDx * 2);
-        else if (handle.includes("left")) newWidth = Math.max(16, original.width - localDx * 2);
+        if (isCorner && !event.shiftKey) {
+          const aspect = original.width / original.height;
+          const delta = handle.includes("right") ? localDx : -localDx;
+          newWidth = Math.max(16, original.width + delta);
+          newHeight = Math.max(16, newWidth / aspect);
+          if (!isCenterScale) {
+            localShiftX = (handle.includes("right") ? (newWidth - original.width) : -(newWidth - original.width)) / 2;
+            localShiftY = (handle.includes("bottom") ? (newHeight - original.height) : -(newHeight - original.height)) / 2;
+          }
+        } else {
+          if (handle.includes("right")) {
+            newWidth = Math.max(16, isCenterScale ? original.width + localDx * 2 : original.width + localDx);
+            if (!isCenterScale) localShiftX = (newWidth - original.width) / 2;
+          } else if (handle.includes("left")) {
+            newWidth = Math.max(16, isCenterScale ? original.width - localDx * 2 : original.width - localDx);
+            if (!isCenterScale) localShiftX = -(newWidth - original.width) / 2;
+          }
 
-        if (handle.includes("bottom")) newHeight = Math.max(16, original.height + localDy * 2);
-        else if (handle.includes("top")) newHeight = Math.max(16, original.height - localDy * 2);
+          if (handle.includes("bottom")) {
+            newHeight = Math.max(16, isCenterScale ? original.height + localDy * 2 : original.height + localDy);
+            if (!isCenterScale) localShiftY = (newHeight - original.height) / 2;
+          } else if (handle.includes("top")) {
+            newHeight = Math.max(16, isCenterScale ? original.height - localDy * 2 : original.height - localDy);
+            if (!isCenterScale) localShiftY = -(newHeight - original.height) / 2;
+          }
+        }
 
-        let updated = { ...original, width: Math.round(newWidth), height: Math.round(newHeight) };
+        const worldShiftX = localShiftX * Math.cos(rad) - localShiftY * Math.sin(rad);
+        const worldShiftY = localShiftX * Math.sin(rad) + localShiftY * Math.cos(rad);
+
+        let updated: DiagramElement = {
+          ...original,
+          width: Math.round(newWidth),
+          height: Math.round(newHeight),
+          x: original.x + worldShiftX,
+          y: original.y + worldShiftY,
+        };
         updated = resolveDiagramElement(updated, scene.elements);
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updated : item) }, false);
         return;
