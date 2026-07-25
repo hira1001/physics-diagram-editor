@@ -689,21 +689,19 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       ctx.strokeRect(-halfW * scale - 4, -halfH * scale - 4, resolved.width * scale + 8, resolved.height * scale + 8);
       ctx.restore();
 
-      // Rotate handle (blue circle)
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = "#3178d4";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(rotateWorld.x, rotateWorld.y, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      // Rotate & Resize handles (only for non-vector elements)
+      if (!isVectorElement(resolved.kind)) {
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#3178d4";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(rotateWorld.x, rotateWorld.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
 
-      // Resize handle (blue square)
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = "#3178d4";
-      ctx.lineWidth = 2;
-      ctx.fillRect(resizeWorld.x - 5, resizeWorld.y - 5, 10, 10);
-      ctx.strokeRect(resizeWorld.x - 5, resizeWorld.y - 5, 10, 10);
+        ctx.fillRect(resizeWorld.x - 5, resizeWorld.y - 5, 10, 10);
+        ctx.strokeRect(resizeWorld.x - 5, resizeWorld.y - 5, 10, 10);
+      }
 
       // Connection endpoint handles
       if (isConnectionElement(resolved.kind)) {
@@ -801,17 +799,19 @@ function hitTest(point: Point, geometry: Geometry, scene: SceneState): Selection
     const element = scene.elements.find((item) => `element:${item.id}` === scene.selectedId);
     if (element) {
       const rad = element.rotation * Math.PI / 180;
-      const rotateHandleWorld = {
-        x: geometry.contentOrigin.x + (element.x + (0) * Math.cos(rad) - (-element.height / 2 - 28) * Math.sin(rad)) * geometry.scale,
-        y: geometry.contentOrigin.y + (element.y + (0) * Math.sin(rad) + (-element.height / 2 - 28) * Math.cos(rad)) * geometry.scale,
-      };
-      if (distance(point, rotateHandleWorld) < 18) return scene.selectedId;
+      if (!isVectorElement(element.kind)) {
+        const rotateHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x + (0) * Math.cos(rad) - (-element.height / 2 - 28) * Math.sin(rad)) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y + (0) * Math.sin(rad) + (-element.height / 2 - 28) * Math.cos(rad)) * geometry.scale,
+        };
+        if (distance(point, rotateHandleWorld) < 18) return scene.selectedId;
 
-      const resizeHandleWorld = {
-        x: geometry.contentOrigin.x + (element.x + (element.width / 2 + 8) * Math.cos(rad) - (element.height / 2 + 8) * Math.sin(rad)) * geometry.scale,
-        y: geometry.contentOrigin.y + (element.y + (element.width / 2 + 8) * Math.sin(rad) + (element.height / 2 + 8) * Math.cos(rad)) * geometry.scale,
-      };
-      if (distance(point, resizeHandleWorld) < 18) return scene.selectedId;
+        const resizeHandleWorld = {
+          x: geometry.contentOrigin.x + (element.x + (element.width / 2 + 8) * Math.cos(rad) - (element.height / 2 + 8) * Math.sin(rad)) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y + (element.width / 2 + 8) * Math.sin(rad) + (element.height / 2 + 8) * Math.cos(rad)) * geometry.scale,
+        };
+        if (distance(point, resizeHandleWorld) < 18) return scene.selectedId;
+      }
 
       if (isConnectionElement(element.kind)) {
         const halfW = element.width / 2;
@@ -1313,14 +1313,17 @@ export function EditorCanvas({
       if (original) {
         const contentX = (point.x - geometry.contentOrigin.x) / geometry.scale;
         const contentY = (point.y - geometry.contentOrigin.y) / geometry.scale;
-        const dx = contentX - original.x;
-        const dy = contentY - original.y;
-        const newWidth = clamp(Math.hypot(dx, dy) * 2, 16, 1500);
+        const actionPoint = getElementActionPoint(original, scene.elements);
+        const dx = contentX - actionPoint.x;
+        const dy = contentY - actionPoint.y;
+        const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);
         let newRotation = Math.atan2(dy, dx) * 180 / Math.PI;
         if (scene.snapEnabled && !event.altKey) {
           newRotation = Math.round(newRotation);
         }
-        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: newWidth, rotation: newRotation } : item) }, false);
+        let updated = { ...original, width: newWidth, rotation: newRotation };
+        updated = resolveDiagramElement(updated, scene.elements);
+        onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updated : item) }, false);
         return;
       }
     }
