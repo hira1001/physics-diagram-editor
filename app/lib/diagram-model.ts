@@ -73,9 +73,10 @@ export function createReferencedElement(kind: DiagramElementKind, target: Diagra
   const element = createDiagramElement(kind, target.x, target.y, id);
   element.referenceTargetId = target.id;
   const surface = catalogSurfacePreset(target.kind);
-  if (surface && kind === "normal-force") element.rotation = target.rotation - 90;
-  if (surface && kind === "friction-force") element.rotation = target.rotation;
-  if (surface && (kind === "angle-arc" || kind === "local-axis")) element.rotation = target.rotation;
+  const slopeAngle = surface?.direction === "incline" ? -Math.round(Math.atan2(target.height, target.width) * 180 / Math.PI) : 0;
+  if (surface && kind === "normal-force") element.rotation = target.rotation + slopeAngle - 90;
+  if (surface && kind === "friction-force") element.rotation = target.rotation + slopeAngle;
+  if (surface && (kind === "angle-arc" || kind === "local-axis")) element.rotation = target.rotation + slopeAngle;
   return resolveDiagramElement(element, [target, element]);
 }
 

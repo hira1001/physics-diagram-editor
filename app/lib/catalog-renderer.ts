@@ -108,7 +108,6 @@ function drawInclineWedge(ctx: CanvasRenderingContext2D, width: number, height: 
     }
   }
   ctx.restore();
-  drawText(ctx, label, 0, h / 2 + 20, labelOffsetX, labelOffsetY, elementRotation);
 }
 
 function drawCatalogSurface(ctx: CanvasRenderingContext2D, width: number, label: string, rough: boolean, labelOffsetX = 0, labelOffsetY = 0, elementRotation = 0) {

@@ -148,7 +148,7 @@ export function catalogSurfaceKind(direction: CatalogSurfacePreset["direction"],
 }
 
 export function catalogSurfaceDefaultRotation(direction: CatalogSurfacePreset["direction"]) {
-  return direction === "wall" ? -90 : direction === "incline" ? -30 : 0;
+  return direction === "wall" ? -90 : 0;
 }
 
 export function createDiagramElement(kind: DiagramElementKind, x: number, y: number, id = globalThis.crypto?.randomUUID?.() ?? `part-${Date.now()}-${Math.random().toString(36).slice(2)}`): DiagramElement {
