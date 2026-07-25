@@ -8,7 +8,7 @@ import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogEntryForTool, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
-import { contextCandidatesForElement, createReferencedElement, createVariableForElement, decomposeVectorElement, findElementDependencies, getElementActionPoint, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
+import { contextCandidatesForElement, createReferencedElement, createVariableForElement, decomposeVectorElement, findElementDependencies, getClosestFaceMidpoint, getElementActionPoint, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 import type { DiagramElement } from "@/app/lib/editor-types";
 
 function pointToSegmentDistance(p: Point, a: Point, b: Point) {
@@ -1250,8 +1250,8 @@ export function EditorCanvas({
           x: original.x + Math.cos(rad) * (original.width / 2),
           y: original.y + Math.sin(rad) * (original.width / 2),
         };
-        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 40);
-        const startPos = target ? { x: target.x, y: target.y } : { x: contentX, y: contentY };
+        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 60);
+        const startPos = target ? getClosestFaceMidpoint(target, endPos) : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
         const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);
@@ -1284,8 +1284,8 @@ export function EditorCanvas({
           x: original.x - Math.cos(rad) * (original.width / 2),
           y: original.y - Math.sin(rad) * (original.width / 2),
         };
-        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 40);
-        const endPos = target ? { x: target.x, y: target.y } : { x: contentX, y: contentY };
+        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 60);
+        const endPos = target ? getClosestFaceMidpoint(target, startPos) : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
         const newWidth = clamp(Math.hypot(dx, dy), 16, 1500);

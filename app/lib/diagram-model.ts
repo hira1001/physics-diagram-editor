@@ -170,18 +170,35 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
       if (["local-axis", "center-of-mass", "point-label", "text"].includes(element.kind)) return { ...element, x: target.x, y: target.y, rotation: target.rotation };
     }
   }
-  if (!isConnectionElement(element.kind) || !element.startTargetId || !element.endTargetId) return element;
-  const start = elements.find((item) => item.id === element.startTargetId);
-  const end = elements.find((item) => item.id === element.endTargetId);
-  if (!start || !end || start.id === end.id) return element;
+  if (!isConnectionElement(element.kind)) return element;
+  const start = element.startTargetId ? elements.find((item) => item.id === element.startTargetId) : null;
+  const end = element.endTargetId ? elements.find((item) => item.id === element.endTargetId) : null;
+  if (!start && !end) return element;
 
-  const startFace = getClosestFaceMidpoint(start, { x: end.x, y: end.y });
-  const endFace = getClosestFaceMidpoint(end, { x: startFace.x, y: startFace.y });
+  const currentRad = (element.rotation * Math.PI) / 180;
+  const halfW = element.width / 2;
 
-  const startX = startFace.x;
-  const startY = startFace.y;
-  const endX = endFace.x;
-  const endY = endFace.y;
+  let startX = element.x - Math.cos(currentRad) * halfW;
+  let startY = element.y - Math.sin(currentRad) * halfW;
+  let endX = element.x + Math.cos(currentRad) * halfW;
+  let endY = element.y + Math.sin(currentRad) * halfW;
+
+  if (start && end && start.id !== end.id) {
+    const startFace = getClosestFaceMidpoint(start, { x: end.x, y: end.y });
+    const endFace = getClosestFaceMidpoint(end, { x: startFace.x, y: startFace.y });
+    startX = startFace.x;
+    startY = startFace.y;
+    endX = endFace.x;
+    endY = endFace.y;
+  } else if (start) {
+    const startFace = getClosestFaceMidpoint(start, { x: endX, y: endY });
+    startX = startFace.x;
+    startY = startFace.y;
+  } else if (end) {
+    const endFace = getClosestFaceMidpoint(end, { x: startX, y: startY });
+    endX = endFace.x;
+    endY = endFace.y;
+  }
 
   const dx = endX - startX;
   const dy = endY - startY;
