@@ -267,7 +267,20 @@ export function PhysicsEditor() {
   const addBlankPage = useCallback(() => {
     recordWorkspace(workspace);
     const pageNumber = workspace.pages.length + 1;
-    const page: DiagramPage = { id: `page-${Date.now()}`, title: `図${pageNumber}`, kind: "blank", scene: { ...INITIAL_SCENE, selectedId: null } };
+    const page: DiagramPage = {
+      id: `page-${Date.now()}`,
+      title: `図${pageNumber}`,
+      kind: "blank",
+      scene: {
+        ...INITIAL_SCENE,
+        surfaceKind: "floor",
+        showAngle: false,
+        elements: [],
+        variables: [],
+        constraints: [],
+        selectedId: null,
+      },
+    };
     setWorkspace((current) => ({ ...current, activePageId: page.id, pages: [...current.pages, page] }));
   }, [recordWorkspace, workspace]);
 

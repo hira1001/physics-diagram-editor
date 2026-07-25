@@ -83,7 +83,8 @@ export function findGroundingSurfaceSnap(
   const contentOrigin = geometry.contentOrigin;
   const scale = geometry.scale;
 
-  if (scene.surfaceKind === "incline") {
+  const hasInclineElement = scene.elements.some((el) => ["smooth-incline", "rough-incline", "wedge"].includes(el.kind));
+  if (scene.surfaceKind === "incline" && (scene.showAngle || hasInclineElement)) {
     const angle = (scene.flipped ? 1 : -1) * scene.angle;
     const startContent = {
       x: (geometry.start.x - contentOrigin.x) / scale,
