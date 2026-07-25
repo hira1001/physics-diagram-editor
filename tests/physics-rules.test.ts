@@ -48,7 +48,7 @@ describe("PHY-040..046 contact surface semantics", () => {
   });
 
   it("reserves wall contact width and moves m away from force shafts", () => {
-    expect(surfaceContactClearance("wall")).toBe(35);
+    expect(surfaceContactClearance("wall")).toBe(58);
     expect(massLabelBaseX({ flipped: false, surfaceKind: "wall" })).toBe(25);
     expect(massLabelBaseX({ flipped: true, surfaceKind: "wall" })).toBe(-25);
   });
