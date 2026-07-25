@@ -1,0 +1,29 @@
+---
+description: ISSUE・監査ドキュメントと実装の同期ルール
+globs: docs/**/*
+alwaysApply: false
+---
+
+# ISSUE / ドキュメント同期
+
+**真実の順位**: コード + テスト > `docs/issues/*.md` > ISSUE-010 比較表
+
+## 実装・挙動を変えたら
+
+1. 対応する `docs/issues/ISSUE-*.md` の **ステータス** を更新（Open / Partial / Resolved）。
+2. ISSUE-010 の比較表で該当行が古ければ **現状列** を直す（× のまま実装済みにしない）。
+3. ユーザー向け挙動なら `docs/PRODUCT-ALIGNMENT.md` または `PROJECT-OVERVIEW.md` を1行でもよいので整合。
+
+## 新機能チケット
+
+- 力学・構造のどちらの **シナリオ** に効くかを ISSUE 冒頭に1行書く。
+- 少クリックに効く変更は ISSUE-011 への参照を付ける。
+
+## 品質
+
+- 319 マトリクス全件の更新は **要求しない**。
+- 触った領域に対応する ID があれば `QUALITY-TEST-MATRIX.md` の状態を更新するか、シナリオ E2E を追加。
+
+## コミット前
+
+`.agents/AGENTS.md`: `typecheck` + `test:unit`、完了後 **push**（オーナー方針）。

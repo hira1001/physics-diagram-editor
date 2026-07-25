@@ -1,0 +1,26 @@
+---
+description: レガシー斜面シーン禁止・elements 一本化
+globs: app/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# レガシー斜面モデル禁止
+
+レガシーは **不要**。新規コード・UX は **カタログ `elements` のみ**。
+
+## 使わない（新規・拡張禁止）
+
+- `SelectionId` の `incline`, `block`, `force-gravity`, `showGravity` 等による **専用 UI 経路**
+- `drawScene` / `scene-export` の **レガシー幾何ブロック** への機能追加
+- 左パネル `libraryItems` のレガシー `ToolId`（`block`, `force`, `pulley`…）を増やすこと
+
+## 使う
+
+- `DiagramElement` + `createDiagramElement` / `template-builder`
+- `resolveDiagramElement`, `contextCandidatesForElement`, `attachAllForcesForElement` 等のシナリオ API
+- テンプレ適用は **新規ページ**（`applyTemplate`）
+
+## 既存レガシーに触れるとき
+
+- **削除・マイグレーション・テスト更新** が目的。レガシー挙動の **拡張はしない**。
+- 保存互換は `workspace-storage` の正規化で吸収し、UI には出さない。

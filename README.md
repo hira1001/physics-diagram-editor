@@ -2,11 +2,14 @@
 
 PowerPointを使わず、教科書品質の力学図を素早く作成するための物理図エディタです。
 
+- [プロダクト認識合わせ](docs/PRODUCT-ALIGNMENT.md)
 - [プロジェクト概要・アーキテクチャ](docs/PROJECT-OVERVIEW.md)
 
 ## Quality
 
-- [要件トレーサビリティ付き品質テストマトリクス](docs/QUALITY-TEST-MATRIX.md)
+- [プロダクト認識合わせ](docs/PRODUCT-ALIGNMENT.md)
+- [品質の進め方（シナリオ中心）](docs/QUALITY-APPROACH.md)
+- [要件トレーサビリティ付き品質テストマトリクス](docs/QUALITY-TEST-MATRIX.md)（参照用・全件ゲートではない）
 - [品質テスト実施記録](docs/TEST-RESULTS.md)
 
 ## Base stack
