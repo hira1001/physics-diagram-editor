@@ -11,6 +11,60 @@ import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catal
 import { decomposeVectorElement, findElementDependencies, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 import type { DiagramElement } from "@/app/lib/editor-types";
 
+function pointToSegmentDistance(p: Point, a: Point, b: Point) {
+  const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+  if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const proj = { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
+  return Math.hypot(p.x - proj.x, p.y - proj.y);
+}
+
+export function findNearbySurfaceSnap(
+  pointWorld: Point,
+  scene: SceneState,
+  geometry: Geometry,
+  excludeId?: string
+) {
+  const edges: { name: string; p1: Point; p2: Point; angle: number }[] = [];
+
+  if (scene.surfaceKind === "incline") {
+    const angle = (scene.flipped ? 1 : -1) * scene.angle;
+    edges.push({ name: `斜面 (${scene.angle}°)`, p1: geometry.start, p2: geometry.end, angle });
+  }
+
+  for (const elem of scene.elements) {
+    if (elem.id === excludeId) continue;
+    if (["smooth-incline", "rough-incline", "wedge"].includes(elem.kind)) {
+      const rad = elem.rotation * Math.PI / 180;
+      const slopeAngle = elem.rotation - Math.round(Math.atan2(elem.height, elem.width) * 180 / Math.PI);
+      const p1 = {
+        x: geometry.contentOrigin.x + (elem.x - Math.cos(rad) * (elem.width / 2) - Math.sin(rad) * (elem.height / 2)) * geometry.scale,
+        y: geometry.contentOrigin.y + (elem.y - Math.sin(rad) * (elem.width / 2) + Math.cos(rad) * (elem.height / 2)) * geometry.scale,
+      };
+      const p2 = {
+        x: geometry.contentOrigin.x + (elem.x + Math.cos(rad) * (elem.width / 2) + Math.sin(rad) * (elem.height / 2)) * geometry.scale,
+        y: geometry.contentOrigin.y + (elem.y + Math.sin(rad) * (elem.width / 2) - Math.cos(rad) * (elem.height / 2)) * geometry.scale,
+      };
+      edges.push({ name: catalogEntry(elem.kind).name, p1, p2, angle: slopeAngle });
+    }
+  }
+
+  let closest: { name: string; p1: Point; p2: Point; angle: number } | null = null;
+  let minDist = 45 * geometry.scale;
+
+  for (const edge of edges) {
+    const dist = pointToSegmentDistance(pointWorld, edge.p1, edge.p2);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = edge;
+    }
+  }
+
+  if (!closest) return null;
+  return { ...closest, distance: minDist };
+}
+
 function findNearbyTargetElement(
   point: { x: number; y: number },
   elements: readonly DiagramElement[],
@@ -920,12 +974,17 @@ export function EditorCanvas({
         } else if (event.shiftKey || event.ctrlKey) {
           deg = Math.round(deg / 15) * 15 % 360;
         } else if (scene.snapEnabled) {
-          const majorAngles = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 360];
-          const closest = majorAngles.reduce((prev, curr) => Math.abs(curr - deg) < Math.abs(prev - deg) ? curr : prev);
-          if (Math.abs(closest - deg) <= 3 || Math.abs(closest - deg - 360) <= 3) {
-            deg = closest % 360;
+          const surfaceSnap = findNearbySurfaceSnap(point, scene, geometry, elementId);
+          if (surfaceSnap && Math.abs((surfaceSnap.snappedAngle % 360) - (deg % 360)) <= 6) {
+            deg = (surfaceSnap.snappedAngle + 360) % 360;
           } else {
-            deg = Math.round(deg);
+            const majorAngles = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 360];
+            const closest = majorAngles.reduce((prev, curr) => Math.abs(curr - deg) < Math.abs(prev - deg) ? curr : prev);
+            if (Math.abs(closest - deg) <= 3 || Math.abs(closest - deg - 360) <= 3) {
+              deg = closest % 360;
+            } else {
+              deg = Math.round(deg);
+            }
           }
         }
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, rotation: deg } : item) }, false);
