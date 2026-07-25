@@ -23,7 +23,6 @@ import { TemplateDialog } from "@/app/components/TemplateDialog";
 import { TopBar } from "@/app/components/TopBar";
 import {
   INITIAL_SCENE,
-  INITIAL_WORKSPACE,
   type DiagramElement,
   type DiagramPage,
   type SceneState,
@@ -31,6 +30,7 @@ import {
   type ToolId,
   type WorkspaceState,
 } from "@/app/lib/editor-types";
+import { createDefaultWorkspace } from "@/app/lib/initial-workspace";
 import { sceneToSvg } from "@/app/lib/scene-export";
 import { svgToPngBlob, svgsToPdfBlob } from "@/app/lib/browser-export";
 import { inspectExportQuality } from "@/app/lib/export-quality";
@@ -40,7 +40,6 @@ import { restoreWorkspace, serializeWorkspace, WORKSPACE_STORAGE_KEY } from "@/a
 import { attachAllForcesForElement } from "@/app/lib/scenario-actions";
 import { removeElementWithDependencies } from "@/app/lib/diagram-model";
 import { writeTextToClipboard } from "@/app/lib/clipboard";
-import { blockRotationDegrees, effectiveSurfaceAngle, surfaceContactClearance, surfacePlacementPatch, surfacePresetForTool, type SurfacePreset } from "@/app/lib/physics-rules";
 import { componentToolId, PHYSICS_COMPONENT_CATALOG } from "@/app/lib/component-catalog";
 import { buildTemplateScene } from "@/app/lib/template-builder";
 
@@ -89,7 +88,7 @@ function storageValuesMatch(left: string | null, right: string | null) {
 
 export function PhysicsEditor() {
   const clipboardRef = useRef<DiagramElement[] | null>(null);
-  const [workspace, setWorkspace] = useState<WorkspaceState>(INITIAL_WORKSPACE);
+  const [workspace, setWorkspace] = useState<WorkspaceState>(() => createDefaultWorkspace());
   const workspaceRef = useRef(workspace);
   const lastPersistedRawRef = useRef<string | null>(null);
   const [undoStack, setUndoStack] = useState<WorkspaceState[]>([]);
@@ -115,7 +114,7 @@ export function PhysicsEditor() {
   const editorRootRef = useRef<HTMLDivElement>(null);
   const activePage = useMemo(() => {
     const found = workspace.pages.find((page) => page.id === workspace.activePageId);
-    return found ?? workspace.pages[0] ?? INITIAL_WORKSPACE.pages[0]!;
+    return found ?? workspace.pages[0] ?? createDefaultWorkspace().pages[0]!;
   }, [workspace.activePageId, workspace.pages]);
 
   useEffect(() => {
@@ -262,19 +261,13 @@ export function PhysicsEditor() {
     if (existing) {
       if (existing.id === workspace.activePageId) return;
       recordWorkspace(workspace);
-      setWorkspace((current) => ({
-        ...current,
-        activePageId: existing.id,
-        pages: current.pages.map((page) => page.id === existing.id
-          ? { ...page, scene: { ...activePage.scene, selectedId: "block" } }
-          : page),
-      }));
+      setWorkspace((current) => ({ ...current, activePageId: existing.id }));
       return;
     }
     recordWorkspace(workspace);
-    const page: DiagramPage = { id: `page-${Date.now()}`, title: "自由体図", kind: "freebody", scene: { ...activePage.scene, selectedId: "block" } };
+    const page: DiagramPage = { id: `page-${Date.now()}`, title: "自由体図", kind: "freebody", scene: buildTemplateScene("freebody") };
     setWorkspace((current) => ({ ...current, activePageId: page.id, pages: [...current.pages, page] }));
-  }, [activePage.scene, recordWorkspace, workspace]);
+  }, [recordWorkspace, workspace]);
 
   const addBlankPage = useCallback(() => {
     recordWorkspace(workspace);
@@ -403,62 +396,10 @@ export function PhysicsEditor() {
     pptx.author = "Physics Diagram Editor";
     pptx.subject = "Editable mechanics diagram";
     for (const page of exportPages) {
-    const scene = page.scene;
-    const include = (id: NonNullable<SceneState["selectedId"]>) => exportSettings.range !== "selection" || scene.selectedId === id;
-    const slide = pptx.addSlide();
-    if (exportSettings.background === "white") slide.background = { color: "FFFFFF" };
-    const effectiveAngle = effectiveSurfaceAngle(scene);
-    const angle = (effectiveAngle * Math.PI) / 180;
-    const direction = scene.flipped ? -1 : 1;
-    const marginInches = exportSettings.margin * 0.01;
-    const startX = (scene.flipped ? 11.1 : 2.2) + scene.diagramOffsetX * 0.01 + (scene.flipped ? -marginInches : marginInches);
-    const startY = 5.8 + scene.diagramOffsetY * 0.01 - marginInches;
-    const length = scene.surfaceKind === "wall" ? 5 : 6.6;
-    const endX = startX + direction * Math.cos(angle) * length;
-    const endY = startY - Math.sin(angle) * length;
-    if (include("incline")) slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: endY - startY, line: { color: "18202B", width: 1.8 } });
-    const normalX = -direction * Math.sin(angle);
-    const normalY = -Math.cos(angle);
-    if (scene.surfaceRoughness === "rough" && include("incline")) {
-      for (let index = 1; index < 18; index += 1) {
-        const t = index / 18;
-        const x = startX + (endX - startX) * t;
-        const y = startY + (endY - startY) * t;
-        slide.addShape(pptx.ShapeType.line, {
-          x,
-          y,
-          w: -normalX * 0.14 - direction * Math.cos(angle) * 0.05,
-          h: -normalY * 0.14 + Math.sin(angle) * 0.05,
-          line: { color: "18202B", width: 0.8 },
-        });
-      }
-    }
-    if (scene.surfaceKind === "incline" && include("incline")) {
-      slide.addShape(pptx.ShapeType.line, { x: endX, y: endY, w: 0, h: startY - endY, line: { color: "18202B", width: 1.8 } });
-      slide.addShape(pptx.ShapeType.line, { x: startX, y: startY, w: endX - startX, h: 0, line: { color: "18202B", width: 1.8 } });
-    }
-    const clearance = surfaceContactClearance(scene.surfaceKind) * 0.01;
-    const centerX = startX + (endX - startX) * scene.blockPosition + normalX * clearance + scene.blockOffsetX * 0.01;
-    const centerY = startY + (endY - startY) * scene.blockPosition + normalY * clearance + scene.blockOffsetY * 0.01;
-    const blockX = centerX - 0.6;
-    const blockY = centerY - 0.45;
-    if (include("block") || include("mass-label")) slide.addText(scene.massLabel, { x: blockX, y: blockY, w: 1.2, h: 0.9, shape: pptx.ShapeType.rect, rotate: blockRotationDegrees(scene), align: "center", valign: "middle", fontFace: "Cambria Math", italic: true, fontSize: 24, fill: { color: "FFFFFF" }, line: { color: "18202B", width: 1.8 }, margin: 0 });
-    if (scene.showGravity && include("force-gravity")) {
-      slide.addShape(pptx.ShapeType.line, { x: centerX, y: centerY, w: 0, h: 1.5, line: { color: "18202B", width: 1.8, endArrowType: "triangle" } });
-      slide.addText("mg", { x: centerX + 0.08, y: centerY + 1.05, w: 0.7, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
-    }
-    if (scene.showNormal && include("force-normal")) {
-      slide.addShape(pptx.ShapeType.line, { x: centerX + normalX * 1.5, y: centerY - Math.cos(angle) * 1.5, w: -normalX * 1.5, h: Math.cos(angle) * 1.5, line: { color: "18202B", width: 1.8, beginArrowType: "triangle" } });
-      slide.addText("N", { x: centerX + normalX * 1.6 - 0.2, y: centerY - Math.cos(angle) * 1.6 - 0.3, w: 0.5, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
-    }
-    if (scene.showFriction && include("force-friction")) {
-      slide.addShape(pptx.ShapeType.line, { x: centerX, y: centerY, w: direction * Math.cos(angle) * 1.5, h: -Math.sin(angle) * 1.5, line: { color: "18202B", width: 1.8, endArrowType: "triangle" } });
-      slide.addText("f", { x: centerX + direction * Math.cos(angle) * 1.5, y: centerY - Math.sin(angle) * 1.5 - 0.25, w: 0.4, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 20, margin: 0 });
-    }
-    if (scene.surfaceKind === "incline" && scene.showAngle && include("angle")) {
-      slide.addText(`θ = ${scene.angle}°`, { x: startX + 0.6, y: startY - 0.55, w: 1.2, h: 0.4, italic: true, fontFace: "Cambria Math", fontSize: 18, margin: 0 });
-    }
-    addCatalogElementsToPptx(slide, pptx.ShapeType, exportSettings.range === "selection" ? selectedCatalogElements(scene) : scene.elements);
+      const scene = page.scene;
+      const slide = pptx.addSlide();
+      if (exportSettings.background === "white") slide.background = { color: "FFFFFF" };
+      addCatalogElementsToPptx(slide, pptx.ShapeType, exportSettings.range === "selection" ? selectedCatalogElements(scene) : scene.elements);
     }
     await pptx.writeFile({ fileName: `${exportSettings.range === "all" ? "全図" : activePage.title}.pptx` });
   }, [activePage.title, exportPages, exportSettings]);
@@ -492,9 +433,6 @@ export function PhysicsEditor() {
   }, []);
 
   const commands = useMemo<EditorCommandItem[]>(() => [
-    { id: "incline-30", label: "斜面を30°に設定", detail: "選択中の斜面の角度を固定", icon: "incline", run: () => updateScene({ angle: 30, selectedId: "incline" }) },
-    { id: "add-block", label: "物体を斜面に追加", detail: "接触制約付きで配置", icon: "box", run: () => updateScene({ selectedId: "block" }) },
-    { id: "add-forces", label: "基本の力を追加", detail: activePage.scene.surfaceRoughness === "rough" ? "mg・N・fを候補から追加" : "mg・Nを候補から追加", icon: "force", run: () => updateScene({ showGravity: true, showNormal: true, showFriction: activePage.scene.surfaceRoughness === "rough", selectedId: "force-gravity" }) },
     {
       id: "attach-all-forces",
       label: "選択物体の力を一括追加",
@@ -513,11 +451,12 @@ export function PhysicsEditor() {
         else setSystemNotice("追加できる力がありません");
       },
     },
-    { id: "add-angle", label: "角度 θ を表示", detail: "斜面と水平線の交角", icon: "angle", run: () => updateScene({ showAngle: true, selectedId: "angle" }) },
     { id: "free-body", label: "自由体図を生成", detail: "変量を共有した別タブを作成", icon: "freebody", run: addFreeBodyPage },
     { id: "grid", label: "グリッドを切り替え", detail: activePage.scene.grid ? "グリッドを非表示" : "グリッドを表示", icon: "grid", run: () => updateScene({ grid: !activePage.scene.grid }) },
     { id: "panels", label: "左パネルを切り替え", detail: "作図領域を拡大", shortcut: "⌘B", icon: "panel", run: () => setWorkspace((current) => ({ ...current, leftPanelVisible: !current.leftPanelVisible })) },
     { id: "export", label: "図を出力", detail: "PPTX・SVG・PNG・PDF", icon: "export", run: () => setFlyout("export") },
+    { id: "template-incline", label: "斜面テンプレートを追加", detail: "新規シートに粗い斜面セット", icon: "incline", run: () => applyTemplate("incline") },
+    { id: "template-beam", label: "単純梁テンプレートを追加", detail: "新規シートに構造力学セット", icon: "box", run: () => applyTemplate("simply-supported-beam") },
     ...PHYSICS_COMPONENT_CATALOG.map((item): EditorCommandItem => ({
       id: `add-part-${item.kind}`,
       label: `${item.name}を追加`,
@@ -525,7 +464,7 @@ export function PhysicsEditor() {
       icon: item.category === "ベクトル" ? "force" : item.category === "注釈" ? "angle" : item.category === "接触面" ? "incline" : "box",
       run: () => setActiveTool(componentToolId(item.kind)),
     })),
-  ], [activePage.scene, activePage.scene.grid, activePage.scene.surfaceRoughness, addFreeBodyPage, updateScene]);
+  ], [activePage.scene, activePage.scene.grid, addFreeBodyPage, applyTemplate, updateScene]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -643,14 +582,7 @@ export function PhysicsEditor() {
           const elementId = selectedId.slice("element:".length);
           const result = removeElementWithDependencies(elementId, activePage.scene.elements, activePage.scene.variables, activePage.scene.constraints);
           updateScene({ elements: result.elements, variables: result.variables, constraints: result.constraints, selectedId: null });
-        } else if (selectedId === "force-gravity") updateScene({ showGravity: false, selectedId: null });
-        else if (selectedId === "force-normal") updateScene({ showNormal: false, selectedId: null });
-        else if (selectedId === "force-friction") updateScene({ showFriction: false, selectedId: null });
-        else if (selectedId === "angle") updateScene({ showAngle: false, selectedId: null });
-        else if (selectedId === "axis") updateScene({ showAxis: false, selectedId: null });
-        else if (selectedId === "spring") updateScene({ showSpring: false, selectedId: null });
-        else if (selectedId === "pulley") updateScene({ showPulley: false, selectedId: null });
-        else if (selectedId === "text") updateScene({ showAnnotation: false, selectedId: null });
+        }
         return;
       }
 
@@ -680,21 +612,6 @@ export function PhysicsEditor() {
               elements: activePage.scene.elements.map((item) => item.id === elementId ? { ...item, x: item.x + dx, y: item.y + dy } : item),
             });
           }
-        } else {
-          const step = event.shiftKey ? 10 : 1;
-          const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
-          const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
-          if (selectedId === "mass-label") {
-            updateScene({ massLabelOffsetX: activePage.scene.massLabelOffsetX + dx, massLabelOffsetY: activePage.scene.massLabelOffsetY + dy });
-          } else if (selectedId === "angle") {
-            updateScene({ angleLabelOffsetX: activePage.scene.angleLabelOffsetX + dx, angleLabelOffsetY: activePage.scene.angleLabelOffsetY + dy });
-          } else if (selectedId === "force-gravity-label") {
-            updateScene({ forceGravityLabelOffsetX: (activePage.scene.forceGravityLabelOffsetX ?? 0) + dx, forceGravityLabelOffsetY: (activePage.scene.forceGravityLabelOffsetY ?? 0) + dy });
-          } else if (selectedId === "force-normal-label") {
-            updateScene({ forceNormalLabelOffsetX: (activePage.scene.forceNormalLabelOffsetX ?? 0) + dx, forceNormalLabelOffsetY: (activePage.scene.forceNormalLabelOffsetY ?? 0) + dy });
-          } else if (selectedId === "force-friction-label") {
-            updateScene({ forceFrictionLabelOffsetX: (activePage.scene.forceFrictionLabelOffsetX ?? 0) + dx, forceFrictionLabelOffsetY: (activePage.scene.forceFrictionLabelOffsetY ?? 0) + dy });
-          }
         }
         return;
       }
@@ -708,20 +625,14 @@ export function PhysicsEditor() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activePage.scene.constraints, activePage.scene.elements, activePage.scene.forceFrictionLabelOffsetX, activePage.scene.forceFrictionLabelOffsetY, activePage.scene.forceGravityLabelOffsetX, activePage.scene.forceGravityLabelOffsetY, activePage.scene.forceNormalLabelOffsetX, activePage.scene.forceNormalLabelOffsetY, activePage.scene.grid, activePage.scene.massLabelOffsetX, activePage.scene.massLabelOffsetY, activePage.scene.angleLabelOffsetX, activePage.scene.angleLabelOffsetY, activePage.scene.selectedId, activePage.scene.variables, redo, undo, updateScene]);
+  }, [activePage.scene.constraints, activePage.scene.elements, activePage.scene.grid, activePage.scene.selectedId, activePage.scene.variables, redo, undo, updateScene]);
 
   const handleToolPick = useCallback((tool: ToolId) => {
     setActiveTool(tool);
     if (activePage.kind === "blank" && !tool.startsWith("part:")) {
       setWorkspace((current) => ({ ...current, pages: current.pages.map((page) => page.id === current.activePageId ? { ...page, kind: "incline" } : page) }));
     }
-    const surfacePreset = surfacePresetForTool(tool);
-    if (surfacePreset) updateScene(surfacePlacementPatch(surfacePreset));
-    if (tool === "angle") updateScene({ showAngle: true, selectedId: "angle" });
-    if (tool === "axis") updateScene({ showAxis: true, selectedId: "axis" });
-    if (tool === "spring") updateScene({ showSpring: true, selectedId: "spring" });
-    if (tool === "pulley") updateScene({ showPulley: true, selectedId: "pulley" });
-  }, [activePage.kind, updateScene]);
+  }, [activePage.kind]);
 
   const finishTour = useCallback(() => {
     setTourOpen(false);
@@ -760,7 +671,7 @@ export function PhysicsEditor() {
           <button className="menu-row" type="button" onClick={saveNow}><span><Check size={15} />今すぐ保存</span></button>
           <button className="menu-row" type="button" onClick={() => setTourOpen(true)}><span><CircleHelp size={15} />60秒ガイド</span><ChevronDown size={14} /></button>
           <div className="menu-row menu-hint" role="note"><span><CircleHelp size={15} />ショートカット</span><small>物体選択中: G mg · N 抗力 · F 摩擦 · T 張力 · D 成分分解 · ⌘K 検索 · ⌘Z 元に戻す</small></div>
-          <button className="menu-row" type="button" onClick={() => setWorkspace(INITIAL_WORKSPACE)}><span><Sparkles size={15} />サンプルを復元</span></button>
+          <button className="menu-row" type="button" onClick={() => setWorkspace(createDefaultWorkspace())}><span><Sparkles size={15} />サンプルを復元</span></button>
         </div>
       ) : null}
 
@@ -812,7 +723,7 @@ export function PhysicsEditor() {
           onUserNotice={setSystemNotice}
         />
 
-        {workspace.rightPanelVisible ? <InspectorPanel pageKind={activePage.kind} scene={activePage.scene} onCreateFreeBody={addFreeBodyPage} onCommitSnapshot={commitSnapshot} onSceneChange={updateScene} /> : null}
+        {workspace.rightPanelVisible ? <InspectorPanel scene={activePage.scene} onCreateFreeBody={addFreeBodyPage} onCommitSnapshot={commitSnapshot} onSceneChange={updateScene} /> : null}
       </div>
 
       <footer className="statusbar">

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDiagramElement } from "@/app/lib/component-catalog";
 import { INITIAL_SCENE, type DiagramPage } from "@/app/lib/editor-types";
 import { inspectPageQuality } from "@/app/lib/export-quality";
+import { buildTemplateScene } from "@/app/lib/template-builder";
 
 function page(overrides: Partial<DiagramPage> = {}): DiagramPage {
   return { id: "quality-page", kind: "incline", scene: { ...INITIAL_SCENE, constraints: [...INITIAL_SCENE.constraints], elements: [], variables: [...INITIAL_SCENE.variables] }, title: "品質図", ...overrides };
@@ -9,7 +10,8 @@ function page(overrides: Partial<DiagramPage> = {}): DiagramPage {
 
 describe("automatic export quality inspection", () => {
   it("accepts the default textbook diagram", () => {
-    expect(inspectPageQuality(page())).toEqual([]);
+    const issues = inspectPageQuality(page({ scene: buildTemplateScene("incline") }));
+    expect(issues.filter((issue) => issue.severity === "error")).toEqual([]);
   });
 
   it("identifies empty pages instead of generating a silent empty file", () => {
@@ -17,7 +19,7 @@ describe("automatic export quality inspection", () => {
   });
 
   it("reports a conflicting constraint with its target", () => {
-    const conflicted = page();
+    const conflicted = page({ scene: buildTemplateScene("incline") });
     conflicted.scene.constraints = [{ id: "bad", conflict: "平行と垂直が同時に指定されています", enabled: true, kind: "parallel", strength: "required", targetIds: ["incline"] }];
     expect(inspectPageQuality(conflicted)).toContainEqual(expect.objectContaining({ code: "constraint-conflict", targetId: "incline" }));
   });

@@ -10,37 +10,21 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs";
 import { NumericInput } from "@/app/components/NumericInput";
 import { VariableInput } from "@/app/components/VariableInput";
-import type { DiagramElement, PageKind, SceneState } from "@/app/lib/editor-types";
-import { hasSurfaceConflict, surfaceDisplayName } from "@/app/lib/physics-rules";
+import type { DiagramElement, SceneState } from "@/app/lib/editor-types";
+import { hasSurfaceConflict } from "@/app/lib/physics-rules";
 import { catalogEntry, catalogSurfaceDefaultRotation, catalogSurfaceKind, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 import { contextCandidatesForElement, createConnection, createReferencedElement, createVariableForElement, findElementDependencies, isConnectionElement, isVectorElement, removeElementWithDependencies } from "@/app/lib/diagram-model";
 
 interface InspectorPanelProps {
   scene: SceneState;
-  pageKind: PageKind;
   onCreateFreeBody: () => void;
   onCommitSnapshot: (scene: SceneState) => void;
   onSceneChange: (patch: Partial<SceneState>, record?: boolean) => void;
 }
 
 type SectionKey = "dimensions" | "quick" | "suggestions" | "variables" | "constraints" | "appearance";
-
-const selectionNames: Record<string, string> = {
-  incline: "斜面",
-  block: "物体",
-  "mass-label": "質量ラベル",
-  "force-gravity": "重力ベクトル",
-  "force-normal": "垂直抗力",
-  "force-friction": "摩擦力",
-  angle: "角度ラベル",
-  axis: "座標軸",
-  spring: "ばね",
-  pulley: "滑車",
-  text: "テキスト",
-};
 
 type ElementNumberKey = "fontSize" | "height" | "lineWidth" | "rotation" | "width" | "x" | "y";
 
@@ -100,7 +84,7 @@ function ElementLabelInput({ element, scene, onCommitSnapshot, onSceneChange }: 
   />;
 }
 
-export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnapshot, onSceneChange }: InspectorPanelProps) {
+export function InspectorPanel({ scene, onCreateFreeBody, onCommitSnapshot, onSceneChange }: InspectorPanelProps) {
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     dimensions: true,
     quick: true,
@@ -112,16 +96,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
   const selectedElement = typeof scene.selectedId === "string" && scene.selectedId.startsWith("element:")
     ? scene.elements.find((item) => `element:${item.id}` === scene.selectedId) ?? null
     : null;
-  const selectedName = scene.selectedId === "incline"
-    ? surfaceDisplayName(scene.surfaceKind, scene.surfaceRoughness)
-    : selectedElement
-      ? catalogEntry(selectedElement.kind).name
-      : scene.selectedId ? selectionNames[scene.selectedId] ?? "選択対象" : "選択なし";
-  const isIncline = scene.selectedId === "incline";
-  const isAngleLabel = scene.selectedId === "angle";
-  const isBlock = scene.selectedId === "block" || scene.selectedId === "mass-label";
-  const isText = scene.selectedId === "text";
-  const isFreeBody = pageKind === "freebody";
+  const selectedName = selectedElement ? catalogEntry(selectedElement.kind).name : "選択なし";
   const surfaceConflict = hasSurfaceConflict(scene);
   const constraintConflicts = scene.constraints.filter((constraint) => constraint.enabled && constraint.conflict);
   const selectedVariables = selectedElement ? scene.variables.filter((variable) => variable.referenceIds.includes(selectedElement.id)) : [];
@@ -130,11 +105,6 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
   const selectedDependencies = selectedElement ? findElementDependencies(selectedElement.id, scene.elements, scene.variables, scene.constraints) : null;
   const hasDependencies = Boolean(selectedDependencies && (selectedDependencies.connections.length || selectedDependencies.constraints.length || selectedDependencies.variables.length));
   const [deletePending, setDeletePending] = useState(false);
-  const addContactForces = () => onSceneChange({
-    showGravity: true,
-    showNormal: true,
-    ...(scene.surfaceRoughness === "rough" ? { showFriction: true } : {}),
-  });
   const toggleSection = (key: SectionKey) => setOpenSections((current) => ({ ...current, [key]: !current[key] }));
   const updateSelectedElement = (patch: Partial<DiagramElement>) => {
     if (!selectedElement) return;
@@ -272,39 +242,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
                 ))}
               </div>
             </> : <div className="property-note"><Link2 size={13} />接続先の移動へ追従</div>}
-          </> : isIncline ? <>
-            <label className="property-row"><span>面</span><select aria-label="接触面の向き" value={scene.surfaceKind} onChange={(event) => onSceneChange({ surfaceKind: event.target.value as SceneState["surfaceKind"], showAngle: event.target.value === "incline" })}><option value="floor">床</option><option value="incline">斜面</option><option value="wall">壁</option></select></label>
-            <label className="property-row"><span>表面</span><select aria-label="接触面の粗さ" value={scene.surfaceRoughness} onChange={(event) => onSceneChange({ surfaceRoughness: event.target.value as SceneState["surfaceRoughness"] })}><option value="smooth">滑らか</option><option value="rough">粗い</option></select></label>
-            {scene.surfaceKind === "incline" ? <>
-              <label className="property-row"><span>角度</span><div className="unit-input"><SceneNumericInput min="5" max="75" property="angle" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></div></label>
-              <input className="angle-range" type="range" min="5" max="75" value={scene.angle} onChange={(event) => onSceneChange({ angle: Number(event.target.value) })} aria-label="斜面の角度" />
-            </> : null}
-            <label className="property-row"><span>図 X</span><SceneNumericInput property="diagramOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-            <label className="property-row"><span>図 Y</span><SceneNumericInput property="diagramOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-          </> : isAngleLabel ? <>
-            <label className="property-row"><span>角度</span><div className="unit-input"><SceneNumericInput min="5" max="75" property="angle" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>°</b></div></label>
-            <label className="property-row"><span>文字 X</span><SceneNumericInput property="angleLabelOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-            <label className="property-row"><span>文字 Y</span><SceneNumericInput property="angleLabelOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-          </> : null}
-          {isBlock ? <>
-            <label className="property-row"><span>ラベル</span><SceneTextInput property="massLabel" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-            {!isFreeBody ? <label className="property-row"><span>位置</span><div className="unit-input"><SceneNumericInput min="12" max="88" property="blockPosition" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label> : null}
-            <label className="property-row"><span>文字 X</span><SceneNumericInput property="massLabelOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-            <label className="property-row"><span>文字 Y</span><SceneNumericInput property="massLabelOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-            {isFreeBody ? <>
-              <label className="property-row"><span>図 X</span><SceneNumericInput property="diagramOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-              <label className="property-row"><span>図 Y</span><SceneNumericInput property="diagramOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-            </> : !scene.contactConstraint ? <>
-              <label className="property-row"><span>物体 X</span><SceneNumericInput property="blockOffsetX" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-              <label className="property-row"><span>物体 Y</span><SceneNumericInput property="blockOffsetY" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-            </> : null}
-          </> : null}
-          {isText ? <>
-            <label className="property-row"><span>文字</span><SceneTextInput property="annotationText" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></label>
-            <label className="property-row"><span>X</span><div className="unit-input"><SceneNumericInput min="4" max="96" property="annotationX" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label>
-            <label className="property-row"><span>Y</span><div className="unit-input"><SceneNumericInput min="4" max="96" property="annotationY" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label>
-          </> : null}
-          {!selectedElement && !isIncline && !isAngleLabel && !isBlock && !isText ? <label className="property-row"><span>ベクトル</span><div className="unit-input"><SceneNumericInput min="50" max="180" property="forceScale" scale={100} scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>%</b></div></label> : null}
+          </> : <div className="property-note">キャンバス上の部品を選択すると寸法と値を編集できます</div>}
         </div> : null}
       </section>
 
@@ -319,18 +257,9 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
             }}><Plus size={15} />複製</button>
             <button className={selectedElement.locked ? "active" : ""} type="button" onClick={() => updateSelectedElement({ locked: !selectedElement.locked })}><Link2 size={15} />{selectedElement.locked ? "ロック解除" : "ロック"}</button>
             <button type="button" onClick={() => hasDependencies ? setDeletePending(true) : removeSelectedElement()}><Trash2 size={15} />削除</button>
-          </> : isText ? <>
-            <button type="button" onClick={() => onSceneChange({ annotationX: 0.5, annotationY: 0.2 })}><RotateCcw size={15} />中央へ戻す</button>
-            <button type="button" onClick={() => onSceneChange({ showAnnotation: false, selectedId: null })}><Trash2 size={15} />削除</button>
-          </> : isFreeBody ? <>
-            <button type="button" onClick={addContactForces}><MoveUpRight size={15} />力を追加</button>
-            <button type="button" onClick={() => onSceneChange({ diagramOffsetX: 0, diagramOffsetY: 0 })}><RotateCcw size={15} />中央へ戻す</button>
-          </> : <>
-            <button type="button" onClick={addContactForces}><MoveUpRight size={15} />力を追加</button>
-            <button type="button" onClick={() => onSceneChange({ flipped: !scene.flipped, blockPosition: 1 - scene.blockPosition })}><FlipHorizontal2 size={15} />左右反転</button>
-            <button className={scene.contactConstraint ? "active" : ""} type="button" onClick={() => onSceneChange({ contactConstraint: !scene.contactConstraint, ...(!scene.contactConstraint ? { blockOffsetX: 0, blockOffsetY: 0 } : {}) })}><Link2 size={15} />{scene.contactConstraint ? "接触中" : "接続"}</button>
+          </> : (
             <button type="button" onClick={onCreateFreeBody}><RotateCcw size={15} />自由体図</button>
-          </>}
+          )}
         </div> : null}
       </section>
 
@@ -396,17 +325,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
             </div>)}
             {selectedVariables.map((variable) => <div className="property-note" key={`${variable.id}-meta`}><Link2 size={13} />型 {variable.type} · 参照 {variable.referenceIds.length}</div>)}
             {!selectedVariables.length ? <button className="add-row" type="button" onClick={() => onSceneChange({ variables: [...scene.variables, createVariableForElement(selectedElement)] })}><Plus size={13} />ラベルを変量化</button> : null}
-          </> : <>
-            <button className="token-row active" type="button" onClick={() => onSceneChange({ selectedId: "angle" })}><i>θ</i><span>斜面角</span><b>{scene.angle}°</b></button>
-            <button className="token-row" type="button" onClick={() => onSceneChange({ selectedId: "mass-label" })}><i>m</i><span>質量</span><b>— kg</b></button>
-          </>}
-          {!selectedElement && scene.surfaceRoughness === "rough" ? <div className="friction-variable-row"><i>μ</i><span>摩擦係数</span><SceneNumericInput aria-label="摩擦係数" min="0" max="10" step="0.05" property="surfaceFrictionCoefficient" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /></div> : null}
-          {!selectedElement && (scene.customVariableSymbol ? <div className="custom-variable-row">
-            <input aria-label="変量記号" value={scene.customVariableSymbol} onChange={(event) => onSceneChange({ customVariableSymbol: event.target.value })} />
-            <input aria-label="変量値" value={scene.customVariableValue} onChange={(event) => onSceneChange({ customVariableValue: event.target.value })} placeholder="値" />
-            <input aria-label="変量単位" value={scene.customVariableUnit} onChange={(event) => onSceneChange({ customVariableUnit: event.target.value })} placeholder="単位" />
-            <button type="button" aria-label="追加変量を削除" onClick={() => onSceneChange({ customVariableSymbol: "", customVariableValue: "", customVariableUnit: "" })}><Trash2 size={13} /></button>
-          </div> : <button className="add-row" type="button" onClick={() => onSceneChange({ customVariableSymbol: "a", customVariableValue: "", customVariableUnit: "m/s²" })}><Plus size={13} />変量を追加</button>)}
+          </> : <div className="property-note">部品を選択すると変量を編集できます</div>}
         </div> : null}
       </section>
 
@@ -416,7 +335,6 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
           {deletePending && selectedElement ? <div className="constraint-conflict" role="alert"><strong>参照中の部品です</strong><span>接続 {selectedDependencies?.connections.length ?? 0} · 変量 {selectedDependencies?.variables.length ?? 0} · 制約 {selectedDependencies?.constraints.length ?? 0}</span><div><button type="button" onClick={removeSelectedElement}>依存関係ごと削除</button><button type="button" onClick={() => setDeletePending(false)}>取消</button></div></div> : null}
           {surfaceConflict ? <div className="constraint-conflict" role="alert"><strong>滑らかな面に摩擦力があります</strong><span>物理条件が競合しています</span><div><button type="button" onClick={() => onSceneChange({ surfaceRoughness: "rough" })}>粗い面に変更</button><button type="button" onClick={() => onSceneChange({ showFriction: false })}>摩擦力を外す</button></div></div> : null}
           {constraintConflicts.map((constraint) => <div className="constraint-conflict" role="alert" key={constraint.id}><strong>{constraint.conflict}</strong><span>{constraint.kind} · 対象 {constraint.targetIds.length}</span><div><button type="button" onClick={() => onSceneChange({ constraints: scene.constraints.map((item) => item.id === constraint.id ? { ...item, enabled: false, conflict: null } : item) })}>制約を無効</button></div></div>)}
-          {!selectedElement && !isFreeBody ? <button className={scene.contactConstraint ? "active" : ""} type="button" onClick={() => onSceneChange({ contactConstraint: !scene.contactConstraint, ...(!scene.contactConstraint ? { blockOffsetX: 0, blockOffsetY: 0 } : {}) })}><Link2 size={14} />物体を斜面に接触 <b>{scene.contactConstraint ? "有効" : "無効"}</b></button> : null}
           <button className={scene.snapEnabled ? "active" : ""} type="button" onClick={() => onSceneChange({ snapEnabled: !scene.snapEnabled })}><Link2 size={14} />推論スナップ <b>{scene.snapEnabled ? "有効" : "無効"}</b></button>
         </div> : null}
       </section>
@@ -426,9 +344,6 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
         {openSections.appearance ? <div className="appearance-list">
           <label><input type="checkbox" checked={scene.grid} onChange={(event) => onSceneChange({ grid: event.target.checked })} />グリッド</label>
           {selectedElement ? <><label className="property-row"><span>文字サイズ</span><div className="unit-input"><ElementNumericInput ariaLabel="文字サイズ" element={selectedElement} property="fontSize" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>px</b></div></label><label className="property-row"><span>線幅</span><div className="unit-input"><ElementNumericInput ariaLabel="線幅" element={selectedElement} property="lineWidth" scene={scene} onCommitSnapshot={onCommitSnapshot} onSceneChange={onSceneChange} /><b>px</b></div></label><label><input type="checkbox" checked={selectedElement.visible} onChange={(event) => updateSelectedElement({ visible: event.target.checked })} />表示</label><label><input type="checkbox" checked={selectedElement.locked} onChange={(event) => updateSelectedElement({ locked: event.target.checked })} />ロック</label></> : null}
-          {!isFreeBody ? <><label><input type="checkbox" checked={scene.showAxis} onChange={(event) => onSceneChange({ showAxis: event.target.checked })} />座標軸</label>
-          <label><input type="checkbox" checked={scene.showAngle} onChange={(event) => onSceneChange({ showAngle: event.target.checked })} />角度</label></> : null}
-          <label><input type="checkbox" checked={scene.showFriction} onChange={(event) => onSceneChange({ showFriction: event.target.checked })} />摩擦力</label>
         </div> : null}
       </section>
     </aside>

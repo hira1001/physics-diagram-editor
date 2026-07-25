@@ -203,26 +203,21 @@ export const INITIAL_SCENE: SceneState = {
   annotationX: 0.5,
   annotationY: 0.2,
   elements: [],
-  variables: [
-    { id: "variable-angle", referenceIds: ["incline"], symbol: "θ", type: "angle", unit: "°", value: "30" },
-    { id: "variable-mass", referenceIds: ["block"], symbol: "m", type: "mass", unit: "kg", value: "" },
-  ],
-  constraints: [
-    { id: "constraint-contact", conflict: null, enabled: true, kind: "contact", strength: "required", targetIds: ["incline", "block"] },
-    { id: "constraint-axis", conflict: null, enabled: true, kind: "axis-follow", strength: "preferred", targetIds: ["incline", "axis"] },
-  ],
-  showAngle: true,
+  variables: [],
+  constraints: [],
+  showAngle: false,
   showAnnotation: false,
-  showAxis: true,
-  showGravity: true,
+  showAxis: false,
+  showGravity: false,
   showNormal: false,
   showFriction: false,
   showSpring: false,
   showPulley: false,
   grid: false,
-  selectedId: "incline",
+  selectedId: null,
 };
 
+/** Blank workspace shell. Prefer `createDefaultWorkspace()` for app startup. */
 export const INITIAL_WORKSPACE: WorkspaceState = {
   schemaVersion: 2,
   density: "standard",
@@ -236,14 +231,8 @@ export const INITIAL_WORKSPACE: WorkspaceState = {
     {
       id: "page-1",
       title: "図1",
-      kind: "incline",
+      kind: "blank",
       scene: { ...INITIAL_SCENE },
-    },
-    {
-      id: "page-fbd",
-      title: "自由体図",
-      kind: "freebody",
-      scene: { ...INITIAL_SCENE, selectedId: "block" },
     },
   ],
 };
