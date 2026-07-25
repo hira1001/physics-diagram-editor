@@ -69,8 +69,17 @@ export function diagramElementToSvg(element: DiagramElement) {
       case "cylinder": body = `<ellipse cx="0" cy="${-h * .32}" rx="${w * .46}" ry="${h * .16}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><path d="M${-w * .46},${-h * .32} L${-w * .46},${h * .32} M${w * .46},${-h * .32} L${w * .46},${h * .32}" ${common}/><ellipse cx="0" cy="${h * .32}" rx="${w * .46}" ry="${h * .16}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/>${makeSvgText(0, 7, label, fontSize, true, rot)}`; break;
       case "wedge": body = `<path d="M${-w / 2},${h / 2} L${w / 2},${h / 2} L${w / 2},${-h / 2} Z" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/>${makeSvgText(w * .18, h * .16, label, fontSize, true, rot)}`; break;
       case "cart": body = `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h * .65}" fill="white" stroke="#18202b" stroke-width="${lineWidth}"/><circle cx="${-w * .3}" cy="${h * .3}" r="${h * .14}" fill="#18202b"/><circle cx="${w * .3}" cy="${h * .3}" r="${h * .14}" fill="#18202b"/>${makeSvgText(0, -h * .1, label, fontSize, true, rot)}`; break;
-      case "smooth-floor": case "smooth-wall": case "smooth-incline": body = surfaceBody(w, lineWidth, fontSize, label, false, rot); break;
-      case "rough-floor": case "rough-wall": case "rough-incline": body = surfaceBody(w, lineWidth, fontSize, label, true, rot); break;
+      case "smooth-floor": case "smooth-wall": body = surfaceBody(w, lineWidth, fontSize, label, false, rot); break;
+      case "rough-floor": case "rough-wall": body = surfaceBody(w, lineWidth, fontSize, label, true, rot); break;
+      case "smooth-incline": case "rough-incline":
+        const isRoughInc = element.kind === "rough-incline";
+        if (element.shapeStyle === "line") {
+          body = surfaceBody(w, lineWidth, fontSize, label, isRoughInc, rot);
+        } else {
+          const raSize = Math.min(w, h) * 0.15;
+          body = `<path d="M${-w / 2},${-h / 2} L${-w / 2},${h / 2} L${w / 2},${h / 2} Z" fill="#f1f5f9" fill-opacity="0.6" stroke="#18202b" stroke-width="${lineWidth}"/><path d="M${-w / 2},${h / 2 - raSize} L${-w / 2 + raSize},${h / 2 - raSize} L${-w / 2 + raSize},${h / 2}" fill="none" stroke="#18202b" stroke-width="1.5"/>${isRoughInc ? `<line x1="${-w / 2}" y1="${h / 2}" x2="${w / 2}" y2="${h / 2}" stroke="#18202b" stroke-width="${lineWidth * 1.5}"/>` : ""}${makeSvgText(0, h / 2 + 20, label, fontSize, true, rot)}`;
+        }
+        break;
       case "spring": body = `<polyline points="${springPath(w)}" ${common}/>${makeSvgText(0, -19, label, fontSize, true, rot)}`; break;
       case "damper": body = `<line x1="${-w / 2}" y1="0" x2="${-w * .15}" y2="0" ${common}/><rect x="${-w * .15}" y="${-h * .28}" width="${w * .3}" height="${h * .56}" ${common}/><line x1="0" y1="${-h * .45}" x2="0" y2="${h * .45}" ${common}/><line x1="${w * .15}" y1="0" x2="${w / 2}" y2="0" ${common}/>${makeSvgText(0, -h * .6, label, fontSize, true, rot)}`; break;
       case "local-axis": body = `<line x1="0" y1="0" x2="${w * .4}" y2="0" ${common} marker-end="url(#arrow)"/><line x1="0" y1="0" x2="0" y2="${-h * .4}" ${common} marker-end="url(#arrow)"/>${makeSvgText(w * .43, 5, "x", fontSize, false, rot, "")}${makeSvgText(-8, -h * .43, "y", fontSize, false, rot, "")}`; break;

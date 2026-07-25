@@ -19,6 +19,11 @@ export type DiagramElementKind =
 
 export interface DiagramElement {
   endTargetId: string | null;
+  groupId?: string;
+  startTargetRatio?: number;
+  endTargetRatio?: number;
+  startEdgeIndex?: number;
+  endEdgeIndex?: number;
   fontSize: number;
   id: string;
   kind: DiagramElementKind;
@@ -30,6 +35,7 @@ export interface DiagramElement {
   rotation: number;
   referenceTargetId: string | null;
   startTargetId: string | null;
+  shapeStyle?: "wedge" | "line";
   visible: boolean;
   width: number;
   height: number;
@@ -143,6 +149,7 @@ export interface SceneState {
   showPulley: boolean;
   grid: boolean;
   selectedId: SelectionId;
+  selectedIds?: string[];
 }
 
 export type PageKind = "incline" | "freebody" | "blank";

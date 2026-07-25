@@ -275,9 +275,18 @@ export function PhysicsEditor() {
     setTemplateOpen(false);
     recordWorkspace(workspace);
     const templateScene = buildTemplateScene(template);
+    const pageNumber = workspace.pages.length + 1;
+    const templateTitle = template === "freebody" ? "自由体図" : template === "incline" ? "斜面運動" : template === "pulley" ? "滑車系" : template === "spring" ? "ばね運動" : `テンプレート図${pageNumber}`;
+    const newPage: DiagramPage = {
+      id: `page-${Date.now()}`,
+      title: templateTitle,
+      kind: template === "freebody" ? "freebody" : "incline",
+      scene: templateScene,
+    };
     setWorkspace((current) => ({
       ...current,
-      pages: current.pages.map((page) => page.id === current.activePageId ? { ...page, kind: template === "freebody" ? "freebody" : "incline", scene: templateScene } : page),
+      activePageId: newPage.id,
+      pages: [...current.pages, newPage],
     }));
     setActiveTool("select");
   }, [recordWorkspace, workspace]);

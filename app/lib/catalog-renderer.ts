@@ -67,6 +67,39 @@ function drawText(ctx: CanvasRenderingContext2D, label: string, x = 0, y = 7, la
   ctx.restore();
 }
 
+function drawInclineWedge(ctx: CanvasRenderingContext2D, width: number, height: number, label: string, rough: boolean, labelOffsetX = 0, labelOffsetY = 0, elementRotation = 0, shapeStyle: "wedge" | "line" = "wedge") {
+  if (shapeStyle === "line") {
+    drawCatalogSurface(ctx, width, label, rough, labelOffsetX, labelOffsetY, elementRotation);
+    return;
+  }
+  const h = Math.max(30, height);
+  const w = Math.max(40, width);
+  ctx.save();
+  ctx.fillStyle = "rgba(241, 245, 249, 0.6)";
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, -h / 2);
+  ctx.lineTo(-w / 2, h / 2);
+  ctx.lineTo(w / 2, h / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  const raSize = Math.min(w, h) * 0.15;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, h / 2 - raSize);
+  ctx.lineTo(-w / 2 + raSize, h / 2 - raSize);
+  ctx.lineTo(-w / 2 + raSize, h / 2);
+  ctx.stroke();
+
+  if (rough) {
+    for (let x = -w / 2 + 10; x < w / 2; x += 16) {
+      line(ctx, x, h / 2, x - 8, h / 2 + 10);
+    }
+  }
+  ctx.restore();
+  drawText(ctx, label, 0, h / 2 + 20, labelOffsetX, labelOffsetY, elementRotation);
+}
+
 function drawCatalogSurface(ctx: CanvasRenderingContext2D, width: number, label: string, rough: boolean, labelOffsetX = 0, labelOffsetY = 0, elementRotation = 0) {
   line(ctx, -width / 2, 0, width / 2, 0);
   if (rough) {
@@ -140,10 +173,14 @@ export function drawDiagramElement(
     case "cart":
       ctx.fillStyle = "#fff"; ctx.fillRect(-w / 2, -h / 2, w, h * .65); ctx.strokeRect(-w / 2, -h / 2, w, h * .65); ctx.beginPath(); ctx.arc(-w * .3, h * .3, h * .14, 0, Math.PI * 2); ctx.arc(w * .3, h * .3, h * .14, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#18202b"; drawText(ctx, element.label, 0, -h * .14, lx, ly, rotRad); break;
 
-    case "smooth-floor": case "smooth-wall": case "smooth-incline":
+    case "smooth-floor": case "smooth-wall":
       drawCatalogSurface(ctx, w, element.label, false, lx, ly, rotRad); break;
-    case "rough-floor": case "rough-wall": case "rough-incline":
+    case "rough-floor": case "rough-wall":
       drawCatalogSurface(ctx, w, element.label, true, lx, ly, rotRad); break;
+    case "smooth-incline":
+      drawInclineWedge(ctx, w, h, element.label, false, lx, ly, rotRad, element.shapeStyle); break;
+    case "rough-incline":
+      drawInclineWedge(ctx, w, h, element.label, true, lx, ly, rotRad, element.shapeStyle); break;
 
     case "ceiling":
       line(ctx, -w / 2, 0, w / 2, 0); for (let x = -w / 2; x < w / 2; x += 18) line(ctx, x, 0, x + 10, -12); break;

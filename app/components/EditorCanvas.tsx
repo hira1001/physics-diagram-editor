@@ -865,7 +865,19 @@ export function EditorCanvas({
         const rad = Math.atan2(contentY - element.y, contentX - element.x);
         let deg = (rad * 180 / Math.PI + 90) % 360;
         if (deg < 0) deg += 360;
-        deg = scene.snapEnabled && !event.altKey ? Math.round(deg) : Math.round(deg * 10) / 10;
+        if (event.altKey) {
+          deg = Math.round(deg * 10) / 10;
+        } else if (event.shiftKey || event.ctrlKey) {
+          deg = Math.round(deg / 15) * 15 % 360;
+        } else if (scene.snapEnabled) {
+          const majorAngles = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 360];
+          const closest = majorAngles.reduce((prev, curr) => Math.abs(curr - deg) < Math.abs(prev - deg) ? curr : prev);
+          if (Math.abs(closest - deg) <= 3 || Math.abs(closest - deg - 360) <= 3) {
+            deg = closest % 360;
+          } else {
+            deg = Math.round(deg);
+          }
+        }
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, rotation: deg } : item) }, false);
         return;
       }
@@ -1002,8 +1014,21 @@ export function EditorCanvas({
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? { ...item, width: nextWidth, rotation: nextRotation } : item) }, false);
         return;
       }
-      const nextX = original.x + (point.x - startPoint.x) / geometry.scale;
-      const nextY = original.y + (point.y - startPoint.y) / geometry.scale;
+      let nextX = original.x + (point.x - startPoint.x) / geometry.scale;
+      let nextY = original.y + (point.y - startPoint.y) / geometry.scale;
+
+      if (scene.snapEnabled && !event.altKey) {
+        const threshold = 8 / geometry.scale;
+        for (const other of scene.elements) {
+          if (other.id === original.id) continue;
+          if (Math.abs(other.x - nextX) < threshold) nextX = other.x;
+          if (Math.abs(other.y - nextY) < threshold) nextY = other.y;
+        }
+        if (scene.grid) {
+          nextX = Math.round(nextX / 10) * 10;
+          nextY = Math.round(nextY / 10) * 10;
+        }
+      }
       let updatedElement: DiagramElement = { ...original, x: nextX, y: nextY };
       if (isConnectionElement(original.kind)) {
         const radians = original.rotation * Math.PI / 180;
