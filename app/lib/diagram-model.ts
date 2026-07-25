@@ -32,13 +32,13 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
       if (isVectorElement(element.kind)) {
         if (rotationalVectorKinds.has(element.kind)) return { ...element, x: target.x, y: target.y };
         const halfW = element.width / 2;
+        const vecRad = (element.rotation * Math.PI) / 180;
 
         if (element.kind === "gravity") {
           return {
             ...element,
-            rotation: 90,
-            x: target.x,
-            y: target.y + halfW,
+            x: target.x + Math.cos(vecRad) * halfW,
+            y: target.y + Math.sin(vecRad) * halfW,
           };
         }
 
@@ -50,19 +50,14 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
           const contactX = target.x + Math.sin(targetRad) * (target.height / 2);
           const contactY = target.y + Math.cos(targetRad) * (target.height / 2);
 
-          const vecRot = element.kind === "normal-force" ? targetRot - 90 : targetRot;
-          const vecRad = (vecRot * Math.PI) / 180;
-
           return {
             ...element,
-            rotation: vecRot,
             x: contactX + Math.cos(vecRad) * halfW,
             y: contactY + Math.sin(vecRad) * halfW,
           };
         }
 
         if (element.kind === "tension" || element.kind === "spring-force") {
-          const vecRad = (element.rotation * Math.PI) / 180;
           const dirX = Math.cos(vecRad);
           const dirY = Math.sin(vecRad);
           const inset = boundaryDistance(target, dirX, dirY);
@@ -76,7 +71,6 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
           };
         }
 
-        const vecRad = (element.rotation * Math.PI) / 180;
         return {
           ...element,
           x: target.x + Math.cos(vecRad) * halfW,
