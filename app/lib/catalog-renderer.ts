@@ -213,6 +213,63 @@ export function drawDiagramElement(
       supportTriangle(ctx, w * .35, h * .7); ctx.save(); ctx.translate(w * .35, 0); supportTriangle(ctx, w * .35, h * .7); ctx.restore(); line(ctx, -w / 2, -h / 2, w / 2, -h / 2); break;
     case "strut":
       ctx.lineWidth = element.lineWidth * 2.5 / scale; line(ctx, -w / 2, 0, w / 2, 0); ctx.lineWidth = element.lineWidth / scale; for (const x of [-w / 2, w / 2]) { ctx.beginPath(); ctx.arc(x, 0, 6, 0, Math.PI * 2); ctx.fill(); } drawText(ctx, element.label, 0, -14, lx, ly, rotRad); break;
+    case "rigid-joint":
+      ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); line(ctx, -w / 2, 0, w / 2, 0); line(ctx, 0, -h / 2, 0, h / 2); break;
+    case "distributed-load": {
+      const arrowCount = 5;
+      line(ctx, -w / 2, -h / 2, w / 2, -h / 2);
+      line(ctx, -w / 2, h / 2, w / 2, h / 2);
+      ctx.fillStyle = ctx.strokeStyle;
+      for (let i = 0; i < arrowCount; i++) {
+        const x = -w / 2 + (w / (arrowCount - 1)) * i;
+        line(ctx, x, -h / 2, x, h / 2);
+        ctx.beginPath(); ctx.moveTo(x, h / 2); ctx.lineTo(x - 4, h / 2 - 8); ctx.lineTo(x + 4, h / 2 - 8); ctx.closePath(); ctx.fill();
+      }
+      drawText(ctx, element.label || "w", 0, -h / 2 - 14, lx, ly, rotRad);
+      break;
+    }
+    case "triangular-load": {
+      const arrowCount = 5;
+      line(ctx, -w / 2, h / 2, w / 2, -h / 2);
+      line(ctx, -w / 2, h / 2, w / 2, h / 2);
+      ctx.fillStyle = ctx.strokeStyle;
+      for (let i = 0; i < arrowCount; i++) {
+        const t = i / (arrowCount - 1);
+        const x = -w / 2 + w * t;
+        const topY = h / 2 - h * t;
+        line(ctx, x, topY, x, h / 2);
+        if (t > 0) {
+          ctx.beginPath(); ctx.moveTo(x, h / 2); ctx.lineTo(x - 3, h / 2 - 7); ctx.lineTo(x + 3, h / 2 - 7); ctx.closePath(); ctx.fill();
+        }
+      }
+      drawText(ctx, element.label || "q", w / 4, -h / 2 - 10, lx, ly, rotRad);
+      break;
+    }
+    case "bending-moment": {
+      const r = Math.min(w, h) * 0.38;
+      ctx.beginPath(); ctx.arc(0, 0, r, -Math.PI * 0.8, Math.PI * 0.7); ctx.stroke();
+      const endAngle = Math.PI * 0.7;
+      const endX = r * Math.cos(endAngle);
+      const endY = r * Math.sin(endAngle);
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.beginPath(); ctx.moveTo(endX, endY); ctx.lineTo(endX - 8, endY - 6); ctx.lineTo(endX - 4, endY + 8); ctx.closePath(); ctx.fill();
+      drawText(ctx, element.label || "M", 0, -r - 12, lx, ly, rotRad);
+      break;
+    }
+    case "shear-diagram": {
+      ctx.save(); ctx.fillStyle = "rgba(49, 120, 212, 0.15)";
+      ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(-w / 2, -h / 2); ctx.lineTo(0, -h / 2); ctx.lineTo(0, h / 2); ctx.lineTo(w / 2, h / 2); ctx.lineTo(w / 2, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+      line(ctx, -w / 2, 0, w / 2, 0); ctx.restore();
+      drawText(ctx, element.label || "SFD", 0, -h / 2 - 12, lx, ly, rotRad);
+      break;
+    }
+    case "moment-diagram": {
+      ctx.save(); ctx.fillStyle = "rgba(49, 120, 212, 0.15)";
+      ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.quadraticCurveTo(0, h / 2, w / 2, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+      line(ctx, -w / 2, 0, w / 2, 0); ctx.restore();
+      drawText(ctx, element.label || "BMD", 0, h / 2 + 16, lx, ly, rotRad);
+      break;
+    }
 
     case "string":
       ctx.lineWidth = element.lineWidth * .75 / scale; line(ctx, -w / 2, 0, w / 2, 0); drawText(ctx, element.label, 0, -13, lx, ly, rotRad); break;

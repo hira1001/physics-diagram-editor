@@ -22,6 +22,9 @@ const templates: Array<{
   { id: "smooth-wall", name: "滑らかな壁と物体", description: "壁面の法線力", detail: "m / mg / N", icon: Slash },
   { id: "pulley", name: "斜面と滑車", description: "滑車と糸を接続", detail: "θ / m / T / mg", icon: CircleDot },
   { id: "spring", name: "斜面とばね", description: "ばねと物体を配置", detail: "θ / m / k / x", icon: Waves },
+  { id: "simply-supported-beam", name: "単純梁 (構造力学)", description: "ピン・ローラー支点と分布荷重", detail: "L / P / w / 支点反力", icon: Slash },
+  { id: "cantilever-beam", name: "片持ち梁 (構造力学)", description: "固定端と曲げモーメント", detail: "L / P / w / M₀", icon: Slash },
+  { id: "portal-frame", name: "門型ラーメン (構造力学)", description: "剛節点フレーム構造", detail: "H / P / 剛接合", icon: Layers3 },
   { id: "freebody", name: "自由体図", description: "選択中の変量を共有", detail: "m / mg / N / f", icon: Layers3 },
 ];
 

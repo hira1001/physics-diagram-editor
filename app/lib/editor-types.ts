@@ -7,6 +7,7 @@ export type DiagramElementKind =
   | "smooth-floor" | "rough-floor" | "smooth-wall" | "rough-wall" | "smooth-incline" | "rough-incline"
   | "ceiling" | "step" | "corner" | "curved-surface"
   | "fixed-end" | "pin-support" | "hinge" | "roller-support" | "simple-support" | "strut"
+  | "distributed-load" | "triangular-load" | "bending-moment" | "shear-diagram" | "moment-diagram" | "rigid-joint"
   | "string" | "rope" | "cable" | "light-rod" | "spring" | "damper"
   | "fixed-pulley" | "movable-pulley" | "compound-pulley" | "wheel-axle" | "rotation-axis" | "belt"
   | "straight-track" | "circular-track" | "curved-track" | "projectile-path"
@@ -86,7 +87,7 @@ export type SelectionId =
   | `element-label:${string}`
   | null;
 
-export type TemplateId = "horizontal" | "incline" | "pulley" | "rough-wall" | "smooth-incline" | "smooth-wall" | "spring" | "freebody" | "stacked" | "atwood" | "pendulum";
+export type TemplateId = "horizontal" | "incline" | "pulley" | "rough-wall" | "smooth-incline" | "smooth-wall" | "spring" | "freebody" | "stacked" | "atwood" | "pendulum" | "simply-supported-beam" | "cantilever-beam" | "portal-frame";
 
 export type LegacyToolId =
   | "select"

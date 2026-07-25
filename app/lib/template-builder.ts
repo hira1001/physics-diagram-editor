@@ -381,5 +381,92 @@ export function buildTemplateScene(template: TemplateId): SceneState {
     };
   }
 
+  if (template === "simply-supported-beam") {
+    const beam = createDiagramElement("light-rod", 450, 300, "beam-member");
+    beam.width = 400;
+    beam.label = "梁 L";
+
+    const pin = createDiagramElement("pin-support", 250, 341, "beam-pin");
+    const roller = createDiagramElement("roller-support", 650, 341, "beam-roller");
+
+    const load = createDiagramElement("distributed-load", 450, 245, "beam-dist-load");
+    load.width = 400;
+    load.label = "w";
+
+    const forceP = createDiagramElement("force", 450, 210, "beam-forceP");
+    forceP.label = "P";
+    forceP.rotation = 90;
+
+    const elements: DiagramElement[] = [beam, pin, roller, load, forceP];
+    const variables: Variable[] = elements.map((item) => createVariableForElement(item));
+
+    return {
+      ...INITIAL_SCENE,
+      elements,
+      variables,
+      showAngle: false, showGravity: false, showNormal: false, showFriction: false, showSpring: false, showPulley: false,
+      selectedId: `element:${beam.id}`,
+    };
+  }
+
+  if (template === "cantilever-beam") {
+    const wall = createDiagramElement("fixed-end", 250, 300, "cantilever-wall");
+    wall.height = 150;
+    wall.rotation = 90;
+
+    const beam = createDiagramElement("light-rod", 450, 300, "cantilever-beam");
+    beam.width = 400;
+    beam.label = "片持ち梁 L";
+
+    const forceP = createDiagramElement("force", 650, 250, "cantilever-forceP");
+    forceP.label = "P";
+    forceP.rotation = 90;
+
+    const moment = createDiagramElement("bending-moment", 250, 240, "cantilever-moment");
+    moment.label = "M₀";
+
+    const elements: DiagramElement[] = [wall, beam, forceP, moment];
+    const variables: Variable[] = elements.map((item) => createVariableForElement(item));
+
+    return {
+      ...INITIAL_SCENE,
+      elements,
+      variables,
+      showAngle: false, showGravity: false, showNormal: false, showFriction: false, showSpring: false, showPulley: false,
+      selectedId: `element:${beam.id}`,
+    };
+  }
+
+  if (template === "portal-frame") {
+    const colLeft = createDiagramElement("light-rod", 300, 350, "portal-colL");
+    colLeft.width = 200; colLeft.rotation = -90;
+
+    const colRight = createDiagramElement("light-rod", 600, 350, "portal-colR");
+    colRight.width = 200; colRight.rotation = -90;
+
+    const beam = createDiagramElement("light-rod", 450, 250, "portal-beam");
+    beam.width = 300;
+
+    const jointL = createDiagramElement("rigid-joint", 300, 250, "portal-jointL");
+    const jointR = createDiagramElement("rigid-joint", 600, 250, "portal-jointR");
+
+    const pinL = createDiagramElement("pin-support", 300, 491, "portal-pinL");
+    const pinR = createDiagramElement("pin-support", 600, 491, "portal-pinR");
+
+    const forceH = createDiagramElement("force", 220, 250, "portal-forceH");
+    forceH.label = "H"; forceH.rotation = 0;
+
+    const elements: DiagramElement[] = [colLeft, colRight, beam, jointL, jointR, pinL, pinR, forceH];
+    const variables: Variable[] = elements.map((item) => createVariableForElement(item));
+
+    return {
+      ...INITIAL_SCENE,
+      elements,
+      variables,
+      showAngle: false, showGravity: false, showNormal: false, showFriction: false, showSpring: false, showPulley: false,
+      selectedId: `element:${beam.id}`,
+    };
+  }
+
   return INITIAL_SCENE;
 }
