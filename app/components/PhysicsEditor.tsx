@@ -109,6 +109,8 @@ export function PhysicsEditor() {
   const [exportBusy, setExportBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
   const editorRootRef = useRef<HTMLDivElement>(null);
   const activePage = workspace.pages.find((page) => page.id === workspace.activePageId) ?? workspace.pages[0];
 
@@ -282,6 +284,51 @@ export function PhysicsEditor() {
       },
     };
     setWorkspace((current) => ({ ...current, activePageId: page.id, pages: [...current.pages, page] }));
+  }, [recordWorkspace, workspace]);
+
+  const duplicatePage = useCallback((pageId: string) => {
+    recordWorkspace(workspace);
+    const targetIndex = workspace.pages.findIndex((p) => p.id === pageId);
+    const source = workspace.pages[targetIndex];
+    if (!source) return;
+    const newPage: DiagramPage = {
+      id: `page-${Date.now()}`,
+      title: `${source.title} (コピー)`,
+      kind: source.kind,
+      scene: JSON.parse(JSON.stringify(source.scene)),
+    };
+    const newPages = [...workspace.pages];
+    newPages.splice(targetIndex + 1, 0, newPage);
+    setWorkspace((current) => ({
+      ...current,
+      activePageId: newPage.id,
+      pages: newPages,
+    }));
+  }, [recordWorkspace, workspace]);
+
+  const deletePage = useCallback((pageId: string) => {
+    if (workspace.pages.length <= 1) return;
+    recordWorkspace(workspace);
+    const targetIndex = workspace.pages.findIndex((p) => p.id === pageId);
+    const nextPages = workspace.pages.filter((p) => p.id !== pageId);
+    const nextActiveId = pageId === workspace.activePageId
+      ? (nextPages[Math.min(targetIndex, nextPages.length - 1)]?.id ?? nextPages[0].id)
+      : workspace.activePageId;
+    setWorkspace((current) => ({
+      ...current,
+      activePageId: nextActiveId,
+      pages: nextPages,
+    }));
+  }, [recordWorkspace, workspace]);
+
+  const renamePage = useCallback((pageId: string, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    recordWorkspace(workspace);
+    setWorkspace((current) => ({
+      ...current,
+      pages: current.pages.map((p) => p.id === pageId ? { ...p, title: trimmed } : p),
+    }));
   }, [recordWorkspace, workspace]);
 
   const applyTemplate = useCallback((template: TemplateId) => {
@@ -740,12 +787,79 @@ export function PhysicsEditor() {
 
       <footer className="statusbar">
         <div className="page-tabs">
-          {workspace.pages.map((page) => (
-            <button aria-current={page.id === workspace.activePageId ? "page" : undefined} className={page.id === workspace.activePageId ? "active" : ""} type="button" key={page.id} onClick={() => setWorkspace((current) => ({ ...current, activePageId: page.id }))}>
-              {page.kind === "freebody" ? <Layers3 size={13} /> : null}{page.title}
-            </button>
-          ))}
-          <button className="add-page" type="button" onClick={addBlankPage} aria-label="図を追加"><Plus size={14} /></button>
+          {workspace.pages.map((page) => {
+            const isActive = page.id === workspace.activePageId;
+            const isEditing = editingPageId === page.id;
+            return (
+              <div
+                key={page.id}
+                className={`page-tab-item ${isActive ? "active" : ""}`}
+                onClick={() => {
+                  if (editingPageId !== page.id) {
+                    setWorkspace((current) => ({ ...current, activePageId: page.id }));
+                  }
+                }}
+                onDoubleClick={() => {
+                  setEditingPageId(page.id);
+                  setEditingTitle(page.title);
+                }}
+              >
+                <span className="page-tab-title">
+                  {page.kind === "freebody" ? <Layers3 size={13} /> : null}
+                  {isEditing ? (
+                    <input
+                      autoFocus
+                      className="tab-rename-input"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onBlur={() => {
+                        renamePage(page.id, editingTitle);
+                        setEditingPageId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          renamePage(page.id, editingTitle);
+                          setEditingPageId(null);
+                        } else if (e.key === "Escape") {
+                          setEditingPageId(null);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span>{page.title}</span>
+                  )}
+                </span>
+
+                <span className="tab-actions">
+                  <button
+                    className="tab-action-btn"
+                    type="button"
+                    title="シートを複製 (コピー)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      duplicatePage(page.id);
+                    }}
+                  >
+                    <Copy size={11} />
+                  </button>
+                  {workspace.pages.length > 1 ? (
+                    <button
+                      className="tab-action-btn delete"
+                      type="button"
+                      title="シートを削除"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePage(page.id);
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  ) : null}
+                </span>
+              </div>
+            );
+          })}
+          <button className="add-page" type="button" onClick={addBlankPage} title="新規図面シートを追加"><Plus size={14} /></button>
         </div>
         <div className="drawing-status"><span>x: {pointerPosition.x}</span><span>y: {pointerPosition.y}</span><span>θ: {activePage.scene.angle}°</span><button className={activePage.scene.grid ? "active" : ""} type="button" onClick={() => updateScene({ grid: !activePage.scene.grid })}><Grid3X3 size={13} />GRID</button><button className={activePage.scene.snapEnabled ? "active" : ""} type="button" onClick={() => updateScene({ snapEnabled: !activePage.scene.snapEnabled })}>SNAP</button></div>
         <div className="zoom-controls"><button type="button" aria-label="縮小" onClick={() => setWorkspace((current) => ({ ...current, zoom: Math.max(50, current.zoom - 10) }))}><Minus size={13} /></button><span>{workspace.zoom}%</span><button type="button" aria-label="拡大" onClick={() => setWorkspace((current) => ({ ...current, zoom: Math.min(180, current.zoom + 10) }))}><Plus size={13} /></button><button type="button" title="全体表示" onClick={() => { setWorkspace((current) => ({ ...current, zoom: 100 })); updateScene({ diagramOffsetX: 0, diagramOffsetY: 0 }); }}><Maximize2 size={13} /></button></div>
