@@ -210,7 +210,7 @@ export function InspectorPanel({ scene, pageKind, onCreateFreeBody, onCommitSnap
                       min={5}
                       max={75}
                       value={Math.round(Math.atan2(selectedElement.height, selectedElement.width) * 180 / Math.PI)}
-                      onChange={(val) => {
+                      onValueChange={(val: number) => {
                         const rad = (val * Math.PI) / 180;
                         updateSelectedElement({ height: Math.round(selectedElement.width * Math.tan(rad)) });
                       }}

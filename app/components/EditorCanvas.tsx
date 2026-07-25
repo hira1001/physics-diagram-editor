@@ -6,7 +6,7 @@ import { SceneNumericInput, SceneTextInput } from "@/app/components/SceneInputs"
 import { VariableInput } from "@/app/components/VariableInput";
 import type { PageKind, SceneState, SelectionId, ToolId } from "@/app/lib/editor-types";
 import { blockRotationDegrees, effectiveSurfaceAngle, hasSurfaceConflict, massLabelBaseX, surfaceContactClearance, surfaceDisplayName, surfacePlacementPatch, surfacePresetForTool } from "@/app/lib/physics-rules";
-import { catalogEntry, catalogEntryForTool, createDiagramElement } from "@/app/lib/component-catalog";
+import { catalogEntry, catalogEntryForTool, catalogSurfacePreset, createDiagramElement } from "@/app/lib/component-catalog";
 import { diagramElementContainsPoint, drawDiagramElement } from "@/app/lib/catalog-renderer";
 import { decomposeVectorElement, findElementDependencies, isConnectionElement, isVectorElement, resolveDiagramElement } from "@/app/lib/diagram-model";
 import type { DiagramElement } from "@/app/lib/editor-types";
