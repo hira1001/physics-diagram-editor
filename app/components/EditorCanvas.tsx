@@ -1301,6 +1301,7 @@ export function EditorCanvas({
           width: newWidth,
           rotation: newRotation,
           startTargetId: target ? target.id : null,
+          startFaceName: target && "faceName" in startPos ? (startPos as { faceName: "left" | "right" | "top" | "bottom" }).faceName : null,
         };
         updatedElement = resolveDiagramElement(updatedElement, scene.elements);
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updatedElement : item) }, false);
@@ -1335,6 +1336,7 @@ export function EditorCanvas({
           width: newWidth,
           rotation: newRotation,
           endTargetId: target ? target.id : null,
+          endFaceName: target && "faceName" in endPos ? (endPos as { faceName: "left" | "right" | "top" | "bottom" }).faceName : null,
         };
         updatedElement = resolveDiagramElement(updatedElement, scene.elements);
         onSceneChange({ elements: scene.elements.map((item) => item.id === elementId ? updatedElement : item) }, false);

@@ -65,6 +65,26 @@ export function getElementActionPoint(element: DiagramElement, elements: readonl
   return { x: element.x, y: element.y };
 }
 
+export function getFaceMidpointByName(
+  element: DiagramElement,
+  faceName: "left" | "right" | "top" | "bottom"
+): { x: number; y: number; normalAngle: number; faceName: "left" | "right" | "top" | "bottom" } {
+  const rad = (element.rotation * Math.PI) / 180;
+  const halfW = element.kind === "point-mass" ? 7 : element.width / 2;
+  const halfH = element.kind === "point-mass" ? 7 : element.height / 2;
+
+  if (faceName === "left") {
+    return { x: element.x - Math.cos(rad) * halfW, y: element.y - Math.sin(rad) * halfW, normalAngle: element.rotation + 180, faceName: "left" };
+  }
+  if (faceName === "right") {
+    return { x: element.x + Math.cos(rad) * halfW, y: element.y + Math.sin(rad) * halfW, normalAngle: element.rotation, faceName: "right" };
+  }
+  if (faceName === "top") {
+    return { x: element.x + Math.sin(rad) * halfH, y: element.y - Math.cos(rad) * halfH, normalAngle: element.rotation - 90, faceName: "top" };
+  }
+  return { x: element.x - Math.sin(rad) * halfH, y: element.y + Math.cos(rad) * halfH, normalAngle: element.rotation + 90, faceName: "bottom" };
+}
+
 export function getOccupiedFaceNames(
   target: DiagramElement,
   elements: readonly DiagramElement[],
@@ -76,14 +96,19 @@ export function getOccupiedFaceNames(
   );
 
   for (const conn of connections) {
-    const currentRad = (conn.rotation * Math.PI) / 180;
-    const halfW = conn.width / 2;
-    const attachPoint = conn.startTargetId === target.id
-      ? { x: conn.x - Math.cos(currentRad) * halfW, y: conn.y - Math.sin(currentRad) * halfW }
-      : { x: conn.x + Math.cos(currentRad) * halfW, y: conn.y + Math.sin(currentRad) * halfW };
-
-    const matchedFace = getClosestFaceMidpoint(target, attachPoint);
-    occupied.add(matchedFace.faceName);
+    if (conn.startTargetId === target.id && conn.startFaceName) {
+      occupied.add(conn.startFaceName);
+    } else if (conn.endTargetId === target.id && conn.endFaceName) {
+      occupied.add(conn.endFaceName);
+    } else {
+      const currentRad = (conn.rotation * Math.PI) / 180;
+      const halfW = conn.width / 2;
+      const attachPoint = conn.startTargetId === target.id
+        ? { x: conn.x - Math.cos(currentRad) * halfW, y: conn.y - Math.sin(currentRad) * halfW }
+        : { x: conn.x + Math.cos(currentRad) * halfW, y: conn.y + Math.sin(currentRad) * halfW };
+      const matchedFace = getClosestFaceMidpoint(target, attachPoint);
+      occupied.add(matchedFace.faceName);
+    }
   }
 
   return occupied;
@@ -93,13 +118,13 @@ export function getClosestFaceMidpoint(
   element: DiagramElement,
   relativeToPoint: { x: number; y: number },
   occupiedFaceNames?: Set<string>
-): { x: number; y: number; normalAngle: number; faceName: string } {
+): { x: number; y: number; normalAngle: number; faceName: "left" | "right" | "top" | "bottom" } {
   const rad = element.rotation * Math.PI / 180;
   const halfW = element.kind === "point-mass" ? 7 : element.width / 2;
   const halfH = element.kind === "point-mass" ? 7 : element.height / 2;
 
   // 4 face midpoints in world coordinates
-  const faces = [
+  const faces: Array<{ x: number; y: number; normalAngle: number; faceName: "left" | "right" | "top" | "bottom" }> = [
     {
       faceName: "left",
       x: element.x - Math.cos(rad) * halfW,
@@ -214,6 +239,8 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
   let startY = element.y - Math.sin(currentRad) * halfW;
   let endX = element.x + Math.cos(currentRad) * halfW;
   let endY = element.y + Math.sin(currentRad) * halfW;
+  let resolvedStartFace = element.startFaceName ?? null;
+  let resolvedEndFace = element.endFaceName ?? null;
 
   if (start && end && start.id !== end.id) {
     const startOccupied = getOccupiedFaceNames(start, elements, element.id);
@@ -224,28 +251,62 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
     startY = startFace.y;
     endX = endFace.x;
     endY = endFace.y;
-  } else if (start) {
-    const startOccupied = getOccupiedFaceNames(start, elements, element.id);
-    const dirPoint = {
-      x: start.x + Math.cos(currentRad) * (start.width / 2 + 10),
-      y: start.y + Math.sin(currentRad) * (start.width / 2 + 10),
+
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1e-6) return element;
+
+    return {
+      ...element,
+      startFaceName: startFace.faceName,
+      endFaceName: endFace.faceName,
+      height: element.height,
+      rotation: Math.atan2(dy, dx) * 180 / Math.PI,
+      width: Math.max(8, dist),
+      x: (startX + endX) / 2,
+      y: (startY + endY) / 2,
     };
-    const startFace = getClosestFaceMidpoint(start, dirPoint, startOccupied);
+  } else if (start) {
+    if (!resolvedStartFace) {
+      const dirPoint = {
+        x: start.x + Math.cos(currentRad) * (start.width / 2 + 10),
+        y: start.y + Math.sin(currentRad) * (start.width / 2 + 10),
+      };
+      resolvedStartFace = getClosestFaceMidpoint(start, dirPoint, getOccupiedFaceNames(start, elements, element.id)).faceName;
+    }
+    const startFace = getFaceMidpointByName(start, resolvedStartFace);
     startX = startFace.x;
     startY = startFace.y;
     endX = startX + Math.cos(currentRad) * element.width;
     endY = startY + Math.sin(currentRad) * element.width;
-  } else if (end) {
-    const endOccupied = getOccupiedFaceNames(end, elements, element.id);
-    const dirPoint = {
-      x: end.x - Math.cos(currentRad) * (end.width / 2 + 10),
-      y: end.y - Math.sin(currentRad) * (end.width / 2 + 10),
+
+    return {
+      ...element,
+      startFaceName: resolvedStartFace,
+      x: (startX + endX) / 2,
+      y: (startY + endY) / 2,
     };
-    const endFace = getClosestFaceMidpoint(end, dirPoint, endOccupied);
+  } else if (end) {
+    if (!resolvedEndFace) {
+      const dirPoint = {
+        x: end.x - Math.cos(currentRad) * (end.width / 2 + 10),
+        y: end.y - Math.sin(currentRad) * (end.width / 2 + 10),
+      };
+      resolvedEndFace = getClosestFaceMidpoint(end, dirPoint, getOccupiedFaceNames(end, elements, element.id)).faceName;
+    }
+    const endFace = getFaceMidpointByName(end, resolvedEndFace);
     endX = endFace.x;
     endY = endFace.y;
     startX = endX - Math.cos(currentRad) * element.width;
     startY = endY - Math.sin(currentRad) * element.width;
+
+    return {
+      ...element,
+      endFaceName: resolvedEndFace,
+      x: (startX + endX) / 2,
+      y: (startY + endY) / 2,
+    };
   }
 
   const dx = endX - startX;

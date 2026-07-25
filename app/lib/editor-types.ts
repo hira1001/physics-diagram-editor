@@ -37,6 +37,8 @@ export interface DiagramElement {
   startTargetId: string | null;
   shapeStyle?: "wedge" | "line";
   visible: boolean;
+  startFaceName?: "left" | "right" | "top" | "bottom" | null;
+  endFaceName?: "left" | "right" | "top" | "bottom" | null;
   width: number;
   height: number;
   x: number;
