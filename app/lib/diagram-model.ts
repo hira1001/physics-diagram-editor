@@ -226,14 +226,26 @@ export function resolveDiagramElement(element: DiagramElement, elements: readonl
     endY = endFace.y;
   } else if (start) {
     const startOccupied = getOccupiedFaceNames(start, elements, element.id);
-    const startFace = getClosestFaceMidpoint(start, { x: startX, y: startY }, startOccupied);
+    const dirPoint = {
+      x: start.x + Math.cos(currentRad) * (start.width / 2 + 10),
+      y: start.y + Math.sin(currentRad) * (start.width / 2 + 10),
+    };
+    const startFace = getClosestFaceMidpoint(start, dirPoint, startOccupied);
     startX = startFace.x;
     startY = startFace.y;
+    endX = startX + Math.cos(currentRad) * element.width;
+    endY = startY + Math.sin(currentRad) * element.width;
   } else if (end) {
     const endOccupied = getOccupiedFaceNames(end, elements, element.id);
-    const endFace = getClosestFaceMidpoint(end, { x: endX, y: endY }, endOccupied);
+    const dirPoint = {
+      x: end.x - Math.cos(currentRad) * (end.width / 2 + 10),
+      y: end.y - Math.sin(currentRad) * (end.width / 2 + 10),
+    };
+    const endFace = getClosestFaceMidpoint(end, dirPoint, endOccupied);
     endX = endFace.x;
     endY = endFace.y;
+    startX = endX - Math.cos(currentRad) * element.width;
+    startY = endY - Math.sin(currentRad) * element.width;
   }
 
   const dx = endX - startX;

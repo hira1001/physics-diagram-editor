@@ -579,29 +579,47 @@ export function PhysicsEditor() {
         return;
       }
 
-      // Arrow keys (Nudging)
+      // Arrow keys (Nudging / Shift+Resizing)
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key) && !isTyping) {
         event.preventDefault();
-        const step = event.shiftKey ? 10 : 1;
-        const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
-        const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
         const selectedId = activePage.scene.selectedId;
 
         if (typeof selectedId === "string" && selectedId.startsWith("element:")) {
           const elementId = selectedId.slice("element:".length);
-          updateScene({
-            elements: activePage.scene.elements.map((item) => item.id === elementId ? { ...item, x: item.x + dx, y: item.y + dy } : item),
-          });
-        } else if (selectedId === "mass-label") {
-          updateScene({ massLabelOffsetX: activePage.scene.massLabelOffsetX + dx, massLabelOffsetY: activePage.scene.massLabelOffsetY + dy });
-        } else if (selectedId === "angle") {
-          updateScene({ angleLabelOffsetX: activePage.scene.angleLabelOffsetX + dx, angleLabelOffsetY: activePage.scene.angleLabelOffsetY + dy });
-        } else if (selectedId === "force-gravity-label") {
-          updateScene({ forceGravityLabelOffsetX: (activePage.scene.forceGravityLabelOffsetX ?? 0) + dx, forceGravityLabelOffsetY: (activePage.scene.forceGravityLabelOffsetY ?? 0) + dy });
-        } else if (selectedId === "force-normal-label") {
-          updateScene({ forceNormalLabelOffsetX: (activePage.scene.forceNormalLabelOffsetX ?? 0) + dx, forceNormalLabelOffsetY: (activePage.scene.forceNormalLabelOffsetY ?? 0) + dy });
-        } else if (selectedId === "force-friction-label") {
-          updateScene({ forceFrictionLabelOffsetX: (activePage.scene.forceFrictionLabelOffsetX ?? 0) + dx, forceFrictionLabelOffsetY: (activePage.scene.forceFrictionLabelOffsetY ?? 0) + dy });
+          if (event.shiftKey) {
+            const dw = event.key === "ArrowRight" ? 10 : event.key === "ArrowLeft" ? -10 : 0;
+            const dh = event.key === "ArrowDown" ? 10 : event.key === "ArrowUp" ? -10 : 0;
+            updateScene({
+              elements: activePage.scene.elements.map((item) => {
+                if (item.id !== elementId) return item;
+                const nextW = Math.max(16, item.width + dw);
+                const nextH = Math.max(16, item.height + dh);
+                return { ...item, width: nextW, height: nextH };
+              }),
+            });
+          } else {
+            const step = 1;
+            const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
+            const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+            updateScene({
+              elements: activePage.scene.elements.map((item) => item.id === elementId ? { ...item, x: item.x + dx, y: item.y + dy } : item),
+            });
+          }
+        } else {
+          const step = event.shiftKey ? 10 : 1;
+          const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
+          const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+          if (selectedId === "mass-label") {
+            updateScene({ massLabelOffsetX: activePage.scene.massLabelOffsetX + dx, massLabelOffsetY: activePage.scene.massLabelOffsetY + dy });
+          } else if (selectedId === "angle") {
+            updateScene({ angleLabelOffsetX: activePage.scene.angleLabelOffsetX + dx, angleLabelOffsetY: activePage.scene.angleLabelOffsetY + dy });
+          } else if (selectedId === "force-gravity-label") {
+            updateScene({ forceGravityLabelOffsetX: (activePage.scene.forceGravityLabelOffsetX ?? 0) + dx, forceGravityLabelOffsetY: (activePage.scene.forceGravityLabelOffsetY ?? 0) + dy });
+          } else if (selectedId === "force-normal-label") {
+            updateScene({ forceNormalLabelOffsetX: (activePage.scene.forceNormalLabelOffsetX ?? 0) + dx, forceNormalLabelOffsetY: (activePage.scene.forceNormalLabelOffsetY ?? 0) + dy });
+          } else if (selectedId === "force-friction-label") {
+            updateScene({ forceFrictionLabelOffsetX: (activePage.scene.forceFrictionLabelOffsetX ?? 0) + dx, forceFrictionLabelOffsetY: (activePage.scene.forceFrictionLabelOffsetY ?? 0) + dy });
+          }
         }
         return;
       }
