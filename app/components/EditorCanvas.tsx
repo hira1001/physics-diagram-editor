@@ -690,7 +690,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
       ctx.strokeRect(-halfW * scale - 4, -halfH * scale - 4, resolved.width * scale + 8, resolved.height * scale + 8);
       ctx.restore();
 
-      // Rotate & Resize handles (only for non-vector elements)
+      // Rotate & 8-Handle PowerPoint Resizing (for non-vector elements)
       if (!isVectorElement(resolved.kind)) {
         ctx.fillStyle = "#ffffff";
         ctx.strokeStyle = "#3178d4";
@@ -700,8 +700,26 @@ export function drawScene(ctx: CanvasRenderingContext2D, width: number, height: 
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillRect(resizeWorld.x - 5, resizeWorld.y - 5, 10, 10);
-        ctx.strokeRect(resizeWorld.x - 5, resizeWorld.y - 5, 10, 10);
+        // 8 handles (4 corners + 4 edge midpoints)
+        const handles = [
+          { x: -halfW - 4, y: -halfH - 4 }, // Top-Left
+          { x: halfW + 4, y: -halfH - 4 },  // Top-Right
+          { x: -halfW - 4, y: halfH + 4 },  // Bottom-Left
+          { x: halfW + 4, y: halfH + 4 },   // Bottom-Right
+          { x: 0, y: -halfH - 4 },          // Top-Mid
+          { x: 0, y: halfH + 4 },           // Bottom-Mid
+          { x: -halfW - 4, y: 0 },          // Left-Mid
+          { x: halfW + 4, y: 0 },           // Right-Mid
+        ];
+
+        for (const h of handles) {
+          const hWorld = {
+            x: geometry.contentOrigin.x + (resolved.x + h.x * Math.cos(rad) - h.y * Math.sin(rad)) * scale,
+            y: geometry.contentOrigin.y + (resolved.y + h.x * Math.sin(rad) + h.y * Math.cos(rad)) * scale,
+          };
+          ctx.fillRect(hWorld.x - 5, hWorld.y - 5, 10, 10);
+          ctx.strokeRect(hWorld.x - 5, hWorld.y - 5, 10, 10);
+        }
       }
 
       // Connection endpoint handles
@@ -1064,24 +1082,40 @@ export function EditorCanvas({
           x: geometry.contentOrigin.x + (element.x + (0) * Math.cos(rad) - (-element.height / 2 - 28) * Math.sin(rad)) * geometry.scale,
           y: geometry.contentOrigin.y + (element.y + (0) * Math.sin(rad) + (-element.height / 2 - 28) * Math.cos(rad)) * geometry.scale,
         };
-        const resizeHandleWorld = {
-          x: geometry.contentOrigin.x + (element.x + (element.width / 2 + 8) * Math.cos(rad) - (element.height / 2 + 8) * Math.sin(rad)) * geometry.scale,
-          y: geometry.contentOrigin.y + (element.y + (element.width / 2 + 8) * Math.sin(rad) + (element.height / 2 + 8) * Math.cos(rad)) * geometry.scale,
-        };
+        const halfW = element.width / 2;
+        const halfH = element.height / 2;
+        const handles = [
+          { x: -halfW - 4, y: -halfH - 4 },
+          { x: halfW + 4, y: -halfH - 4 },
+          { x: -halfW - 4, y: halfH + 4 },
+          { x: halfW + 4, y: halfH + 4 },
+          { x: 0, y: -halfH - 4 },
+          { x: 0, y: halfH + 4 },
+          { x: -halfW - 4, y: 0 },
+          { x: halfW + 4, y: 0 },
+        ];
+        const isNearResizeHandle = !isVectorElement(element.kind) && handles.some((h) => {
+          const hWorld = {
+            x: geometry.contentOrigin.x + (element.x + h.x * Math.cos(rad) - h.y * Math.sin(rad)) * geometry.scale,
+            y: geometry.contentOrigin.y + (element.y + h.x * Math.sin(rad) + h.y * Math.cos(rad)) * geometry.scale,
+          };
+          return distance(point, hWorld) < 18;
+        });
+
         const startHandleWorld = {
-          x: geometry.contentOrigin.x + (element.x - Math.cos(rad) * (element.width / 2)) * geometry.scale,
-          y: geometry.contentOrigin.y + (element.y - Math.sin(rad) * (element.width / 2)) * geometry.scale,
+          x: geometry.contentOrigin.x + (element.x - Math.cos(rad) * halfW) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y - Math.sin(rad) * halfW) * geometry.scale,
         };
         const endHandleWorld = {
-          x: geometry.contentOrigin.x + (element.x + Math.cos(rad) * (element.width / 2)) * geometry.scale,
-          y: geometry.contentOrigin.y + (element.y + Math.sin(rad) * (element.width / 2)) * geometry.scale,
+          x: geometry.contentOrigin.x + (element.x + Math.cos(rad) * halfW) * geometry.scale,
+          y: geometry.contentOrigin.y + (element.y + Math.sin(rad) * halfW) * geometry.scale,
         };
 
         if (element.label && distance(point, getElementLabelWorldPosition(element, geometry)) < 10) {
           setDragMode("element-label");
         } else if (distance(point, rotateHandleWorld) < 18) {
           setDragMode("element-rotate");
-        } else if (distance(point, resizeHandleWorld) < 18) {
+        } else if (isNearResizeHandle) {
           setDragMode("element-resize");
         } else if (isConnectionElement(element.kind) && distance(point, startHandleWorld) < 18) {
           setDragMode("element-start-point");
@@ -1251,7 +1285,7 @@ export function EditorCanvas({
           x: original.x + Math.cos(rad) * (original.width / 2),
           y: original.y + Math.sin(rad) * (original.width / 2),
         };
-        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 60);
+        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 24);
         const startPos = target ? getClosestFaceMidpoint(target, { x: contentX, y: contentY }, getOccupiedFaceNames(target, scene.elements, elementId)) : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
@@ -1285,7 +1319,7 @@ export function EditorCanvas({
           x: original.x - Math.cos(rad) * (original.width / 2),
           y: original.y - Math.sin(rad) * (original.width / 2),
         };
-        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 60);
+        const target = findNearbyTargetElement({ x: contentX, y: contentY }, scene.elements, elementId, 24);
         const endPos = target ? getClosestFaceMidpoint(target, { x: contentX, y: contentY }, getOccupiedFaceNames(target, scene.elements, elementId)) : { x: contentX, y: contentY };
         const dx = endPos.x - startPos.x;
         const dy = endPos.y - startPos.y;
