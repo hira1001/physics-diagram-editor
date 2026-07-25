@@ -243,7 +243,7 @@ export function LibraryPanel({
                     </button>
                     <button className="template-row" type="button" onClick={() => onApplyTemplate("rough-wall")}>
                       <span className="mini-template incline-template" aria-hidden="true"><i /><b /></span>
-                      <span><strong>粗い壁と物体</strong><small>N・f・μを連動</small></span>
+                      <span><strong>粗い壁と物体</strong><small>N・fを連動</small></span>
                     </button>
                   </section>
 

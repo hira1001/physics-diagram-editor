@@ -204,7 +204,6 @@ export const INITIAL_SCENE: SceneState = {
   variables: [
     { id: "variable-angle", referenceIds: ["incline"], symbol: "θ", type: "angle", unit: "°", value: "30" },
     { id: "variable-mass", referenceIds: ["block"], symbol: "m", type: "mass", unit: "kg", value: "" },
-    { id: "variable-friction", referenceIds: ["incline"], symbol: "μ", type: "coefficient", unit: "", value: "0.3" },
   ],
   constraints: [
     { id: "constraint-contact", conflict: null, enabled: true, kind: "contact", strength: "required", targetIds: ["incline", "block"] },

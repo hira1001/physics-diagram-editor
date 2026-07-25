@@ -52,7 +52,6 @@ export function contactSuggestions(kind: SurfaceKind, roughness: SurfaceRoughnes
   ];
   if (roughness === "rough") {
     suggestions.push({ id: "friction", symbol: "f", relation: "面に平行" });
-    suggestions.push({ id: "coefficient", symbol: "μ", relation: "摩擦係数" });
   }
   return suggestions;
 }

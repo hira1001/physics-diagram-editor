@@ -28,9 +28,9 @@ describe("PHY-040..046 contact surface semantics", () => {
     expect(symbols).toEqual(["mg", "N"]);
   });
 
-  it("offers friction and mu for a rough wall", () => {
+  it("offers friction for a rough wall without auto-generating mu", () => {
     const suggestions = contactSuggestions("wall", "rough");
-    expect(suggestions.map((item) => item.symbol)).toEqual(["mg", "N", "f", "μ"]);
+    expect(suggestions.map((item) => item.symbol)).toEqual(["mg", "N", "f"]);
     expect(suggestions.find((item) => item.symbol === "f")?.relation).toBe("面に平行");
   });
 
