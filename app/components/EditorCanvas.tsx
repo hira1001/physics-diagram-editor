@@ -21,6 +21,44 @@ function pointToSegmentDistance(p: Point, a: Point, b: Point) {
   return Math.hypot(p.x - proj.x, p.y - proj.y);
 }
 
+const contactSurfaceKinds = new Set<DiagramElementKind>([
+  "smooth-floor", "rough-floor", "smooth-wall", "rough-wall", "smooth-incline", "rough-incline", "wedge",
+]);
+
+function isContactSurfaceElement(kind: DiagramElementKind) {
+  return contactSurfaceKinds.has(kind);
+}
+
+/**
+ * Returns the exact visible contact edge for a catalog surface in document
+ * coordinates.  Keeping this separate from drawing avoids a second, subtly
+ * different definition of where a body should land.
+ */
+export function contactEdgeForElement(element: DiagramElement): GroundingSegment | null {
+  if (!isContactSurfaceElement(element.kind)) return null;
+
+  const radians = element.rotation * Math.PI / 180;
+  const localToWorld = (x: number, y: number): Point => ({
+    x: element.x + x * Math.cos(radians) - y * Math.sin(radians),
+    y: element.y + x * Math.sin(radians) + y * Math.cos(radians),
+  });
+
+  // A floor/wall is drawn as its local horizontal centre line. An incline and
+  // wedge are drawn with a sloped triangle edge (or this same line when the
+  // incline is explicitly switched to line style).
+  const isWedgeEdge = ["smooth-incline", "rough-incline", "wedge"].includes(element.kind)
+    && element.shapeStyle !== "line";
+  const p1 = isWedgeEdge
+    ? localToWorld(-element.width / 2, element.height / 2)
+    : localToWorld(-element.width / 2, 0);
+  const p2 = isWedgeEdge
+    ? localToWorld(element.width / 2, -element.height / 2)
+    : localToWorld(element.width / 2, 0);
+  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+
+  return { name: catalogEntry(element.kind).name, p1, p2, angle };
+}
+
 export function findNearbySurfaceSnap(
   pointWorld: Point,
   scene: SceneState,
@@ -36,18 +74,13 @@ export function findNearbySurfaceSnap(
 
   for (const elem of scene.elements) {
     if (elem.id === excludeId) continue;
-    if (["smooth-incline", "rough-incline", "wedge"].includes(elem.kind)) {
-      const rad = elem.rotation * Math.PI / 180;
-      const slopeAngle = elem.rotation - Math.round(Math.atan2(elem.height, elem.width) * 180 / Math.PI);
-      const p1 = {
-        x: geometry.contentOrigin.x + (elem.x - Math.cos(rad) * (elem.width / 2) - Math.sin(rad) * (elem.height / 2)) * geometry.scale,
-        y: geometry.contentOrigin.y + (elem.y - Math.sin(rad) * (elem.width / 2) + Math.cos(rad) * (elem.height / 2)) * geometry.scale,
-      };
-      const p2 = {
-        x: geometry.contentOrigin.x + (elem.x + Math.cos(rad) * (elem.width / 2) + Math.sin(rad) * (elem.height / 2)) * geometry.scale,
-        y: geometry.contentOrigin.y + (elem.y + Math.sin(rad) * (elem.width / 2) - Math.cos(rad) * (elem.height / 2)) * geometry.scale,
-      };
-      edges.push({ name: catalogEntry(elem.kind).name, p1, p2, angle: slopeAngle });
+    const contactEdge = contactEdgeForElement(elem);
+    if (contactEdge) {
+      edges.push({
+        ...contactEdge,
+        p1: { x: geometry.contentOrigin.x + contactEdge.p1.x * geometry.scale, y: geometry.contentOrigin.y + contactEdge.p1.y * geometry.scale },
+        p2: { x: geometry.contentOrigin.x + contactEdge.p2.x * geometry.scale, y: geometry.contentOrigin.y + contactEdge.p2.y * geometry.scale },
+      });
     }
   }
 
@@ -105,23 +138,9 @@ export function findGroundingSurfaceSnap(
 
   for (const item of scene.elements) {
     if (item.id === element.id) continue;
-    if (["smooth-incline", "rough-incline", "wedge"].includes(item.kind)) {
-      const rad = item.rotation * Math.PI / 180;
-      const slopeAngle = item.rotation - Math.round(Math.atan2(item.height, item.width) * 180 / Math.PI);
-      const p1 = {
-        x: item.x - Math.cos(rad) * (item.width / 2) - Math.sin(rad) * (item.height / 2),
-        y: item.y - Math.sin(rad) * (item.width / 2) + Math.cos(rad) * (item.height / 2),
-      };
-      const p2 = {
-        x: item.x + Math.cos(rad) * (item.width / 2) + Math.sin(rad) * (item.height / 2),
-        y: item.y + Math.sin(rad) * (item.width / 2) - Math.cos(rad) * (item.height / 2),
-      };
-      segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: slopeAngle });
-    } else if (["smooth-floor", "rough-floor", "smooth-wall", "rough-wall"].includes(item.kind)) {
-      const rad = item.rotation * Math.PI / 180;
-      const p1 = { x: item.x - Math.cos(rad) * (item.width / 2), y: item.y - Math.sin(rad) * (item.width / 2) };
-      const p2 = { x: item.x + Math.cos(rad) * (item.width / 2), y: item.y + Math.sin(rad) * (item.width / 2) };
-      segments.push({ name: catalogEntry(item.kind).name, p1, p2, angle: item.rotation });
+    const contactEdge = contactEdgeForElement(item);
+    if (contactEdge) {
+      segments.push(contactEdge);
     } else if (item.kind === "fixed-end") {
       const rad = item.rotation * Math.PI / 180;
       const p1 = { x: item.x - Math.sin(rad) * (item.height / 2), y: item.y + Math.cos(rad) * (item.height / 2) };
@@ -161,10 +180,13 @@ export function findGroundingSurfaceSnap(
     const relAngle = elemRad - rad;
     const clearance = (element.width / 2) * Math.abs(Math.sin(relAngle)) + (element.height / 2) * Math.abs(Math.cos(relAngle));
 
-    const isVerticalWall = Math.abs(Math.sin(rad)) > 0.8;
-    if (isVerticalWall) {
-      if (nextX < projX) normalX = -Math.abs(normalX);
-      else normalX = Math.abs(normalX);
+    // Attach to the side from which the body approaches. This preserves the
+    // conventional "top" of a horizontal floor, while allowing both sides of
+    // a wall and a rotated contact surface to work without special cases.
+    const side = (nextX - projX) * normalX + (nextY - projY) * normalY;
+    if (side < 0) {
+      normalX *= -1;
+      normalY *= -1;
     }
 
     const targetX = projX + normalX * clearance;
@@ -834,15 +856,15 @@ export function EditorCanvas({
 
       // Quick force shortcuts: G=gravity, N=normal, F=friction, T=tension
       if (isVectorElement(sel.kind)) return; // only for body/surface elements
-      const shortcutMap: Record<string, string> = { g: "gravity", n: "normal-force", f: "friction-force", t: "tension" };
+      const shortcutMap: Record<string, DiagramElementKind> = { g: "gravity", n: "normal-force", f: "friction-force", t: "tension" };
       const kind = shortcutMap[event.key.toLowerCase()];
       if (!kind) return;
       const candidates = contextCandidatesForElement(sel);
-      if (!candidates.includes(kind as any)) return;
+      if (!candidates.includes(kind)) return;
       const alreadyAttached = scene.elements.some((el) => el.referenceTargetId === sel.id && el.kind === kind);
       if (alreadyAttached) return;
       event.preventDefault();
-      const newEl = createReferencedElement(kind as any, sel);
+      const newEl = createReferencedElement(kind, sel);
       const newVar = createVariableForElement(newEl);
       onSceneChange({
         elements: [...scene.elements, newEl],
@@ -1363,18 +1385,21 @@ export function EditorCanvas({
         marquee: current.marquee,
         snapGuides: guideX !== undefined || guideY !== undefined ? { x: guideX, y: guideY } : undefined,
       }));
-      let nextRotation = original.rotation;
+      const nextRotation = original.rotation;
       if (
         scene.snapEnabled &&
         !event.altKey &&
         !isConnectionElement(original.kind) &&
         !isVectorElement(original.kind) &&
-        !["smooth-incline", "rough-incline", "wedge"].includes(original.kind)
+        !isContactSurfaceElement(original.kind)
       ) {
         const groundingSnap = findGroundingSurfaceSnap(original, nextX, nextY, scene, geometry);
         if (groundingSnap) {
-          nextX = groundingSnap.snappedX;
-          nextY = groundingSnap.snappedY;
+          // Keep persisted document values stable: pointer coordinates can
+          // otherwise leave display-only floating point noise in the
+          // inspector and exported files after a perfect contact snap.
+          nextX = Math.round(groundingSnap.snappedX * 1_000) / 1_000;
+          nextY = Math.round(groundingSnap.snappedY * 1_000) / 1_000;
           // Preserve element's rotation - do not auto-rotate when snapping to wall or surface
         }
       }
@@ -1538,7 +1563,7 @@ export function EditorCanvas({
       const elementId = scene.selectedId.slice("element:".length);
       const element = scene.elements.find((item) => item.id === elementId);
       if (element && !isVectorElement(element.kind) && !isConnectionElement(element.kind)
-        && !["smooth-incline", "rough-incline", "wedge"].includes(element.kind)
+        && !isContactSurfaceElement(element.kind)
         && scene.snapEnabled) {
         const groundingSnap = findGroundingSurfaceSnap(element, element.x, element.y, scene, geometry);
         if (groundingSnap) {

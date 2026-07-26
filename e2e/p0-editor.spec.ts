@@ -505,6 +505,28 @@ test("DIR-001: a library component can be dragged onto the canvas", async ({ pag
   await expect(inspector.getByRole("textbox", { name: "文字", exact: true })).toHaveValue("注記");
 });
 
+test("PHY-021/CTX-013: a body dragged near an independently placed contact surface adsorbs without overlap", async ({ page }) => {
+  const { box, canvas, geometry } = await canvasGeometry(page);
+  const toCanvasPoint = (x: number, y: number) => ({
+    x: geometry.contentOrigin.x + x * geometry.scale,
+    y: geometry.contentOrigin.y + y * geometry.scale,
+  });
+
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("粗い床");
+  await page.getByRole("button", { name: "粗い床", exact: true }).click();
+  await canvas.click({ position: toCanvasPoint(500, 420) });
+
+  await page.getByPlaceholder("部品を検索", { exact: true }).fill("直方体");
+  await page.getByRole("button", { name: "物体 m", exact: true }).click();
+  const bodyPoint = toCanvasPoint(500, 350);
+  await canvas.click({ position: bodyPoint });
+  await dragCanvasPoint(page, box, bodyPoint, { x: 0, y: 22 * geometry.scale });
+
+  const inspector = page.getByRole("complementary", { name: "選択対象の設定" });
+  await expect(inspector.locator(".inspector-title strong")).toHaveText("物体");
+  await expect(inspector.getByRole("spinbutton", { name: "Y" })).toHaveValue("382");
+});
+
 test("SHL-010/013: structure selection and diagram tabs select exact targets", async ({ page }) => {
   await page.getByRole("tab", { name: "構造", exact: true }).click();
   await page.getByRole("button", { name: "垂直抗力 N", exact: true }).click();

@@ -118,12 +118,6 @@ export function PhysicsEditor() {
   }, [workspace.activePageId, workspace.pages]);
 
   useEffect(() => {
-    if (workspace.pages.length === 0) return;
-    if (workspace.pages.some((page) => page.id === workspace.activePageId)) return;
-    setWorkspace((current) => ({ ...current, activePageId: current.pages[0]!.id }));
-  }, [workspace.activePageId, workspace.pages]);
-
-  useEffect(() => {
     editorRootRef.current?.setAttribute("data-hydrated", "true");
   }, []);
 
